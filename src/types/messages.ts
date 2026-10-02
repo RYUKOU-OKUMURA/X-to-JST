@@ -1,4 +1,4 @@
-export type TweetContext = { text: string; postedAtUtc?: string; url?: string };
+export type TweetContext = { text: string; postedAtUtc?: string; url?: string; lang?: string };
 export type DateRule =
   | { kind: 'relative'; days: 0 | 1 }
   | { kind: 'weekday'; weekday: number; nextWeek: boolean }

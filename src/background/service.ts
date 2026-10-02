@@ -1,11 +1,13 @@
 import { isRecord, type ResolveMessage, type WorkerReply } from '../types/messages';
 import { resolveLocal } from '../core/resolver';
 import { JEV_TIMEOUT_MS, requestJev } from './jev-client';
+import { createResearchService } from './research-service';
 type Storage = Pick<chrome.storage.LocalStorageArea, 'setAccessLevel' | 'get' | 'set' | 'remove'>;
 export function createService(storage: Storage, fetcher: typeof fetch = fetch) {
   // Start the restriction immediately; listeners register synchronously while this runs.
   const ready = storage.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' });
   void ready.catch(() => undefined);
+  const research = createResearchService(storage, fetcher);
   const flights = new Map<string, { result: Promise<WorkerReply>; controller: AbortController }>();
   let keyRevision = 0;
   const failure = (code: 'KEY_NOT_SET' | 'JEV_UNAVAILABLE' | 'INVALID_REQUEST'): WorkerReply => ({ ok: false, error: { code,
@@ -24,9 +26,14 @@ export function createService(storage: Storage, fetcher: typeof fetch = fetch) {
         await storage.set({ apiKey: value.key });
       } else await storage.remove('apiKey');
       keyRevision++;
+      research.cancelAll();
       for (const flight of flights.values()) flight.controller.abort();
       flights.clear();
       return { ok: true };
+    }
+    if (typeof value.type === 'string' && value.type.startsWith('RESEARCH_')) {
+      await ready;
+      return research.handle(value, sender);
     }
     if (value.type !== 'RESOLVE_TIME_AMBIGUITY' || !sender.tab || !sender.url?.startsWith('https://x.com/')) return failure('INVALID_REQUEST');
     const payload = value.payload;
