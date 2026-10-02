@@ -6,7 +6,7 @@ import { extractTweetContext } from './x-dom';
 type SendMessage = (message: unknown) => Promise<unknown>;
 const controls = new WeakMap<HTMLElement, () => void>();
 export function refreshUi(article: HTMLElement) { controls.get(article)?.(); }
-const CSS = `:host{display:block;margin:8px 0;color-scheme:light dark}*{box-sizing:border-box}section{font:14px/1.6 system-ui,sans-serif;color:CanvasText;text-align:left}button{font:inherit;padding:6px 12px;border:1px solid #6c8090;border-radius:16px;background:Canvas;color:CanvasText;cursor:pointer}button:focus-visible{outline:3px solid #1d9bf0;outline-offset:2px}button:disabled{opacity:.6;cursor:wait}.result{border:1px solid #6c8090;border-radius:12px;padding:12px;margin-top:8px;background:Canvas;color:CanvasText;overflow-wrap:anywhere}h3{font-size:16px;margin:0 0 8px}p{margin:4px 0 8px}.candidate{padding:8px 0}.time{font-size:17px;font-weight:700}.warning{font-size:13px}details{margin-top:8px}summary{cursor:pointer}`;
+const CSS = `:host{display:block;flex:0 0 100%;min-width:0;margin:8px 0;color-scheme:light dark}*{box-sizing:border-box}section{font:14px/1.6 system-ui,sans-serif;color:CanvasText;text-align:left}button{font:inherit;padding:6px 12px;border:1px solid #6c8090;border-radius:16px;background:Canvas;color:CanvasText;cursor:pointer}button:focus-visible{outline:3px solid #1d9bf0;outline-offset:2px}button:disabled{opacity:.6;cursor:wait}.result{border:1px solid #6c8090;border-radius:12px;padding:12px;margin-top:8px;background:Canvas;color:CanvasText;overflow-wrap:anywhere}h3{font-size:16px;margin:0 0 8px}p{margin:4px 0 8px}.candidate{padding:8px 0}.time{font-size:17px;font-weight:700}.warning{font-size:13px}details{margin-top:8px}summary{cursor:pointer}`;
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, text?: string): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
   if (text) node.textContent = text;
@@ -44,6 +44,8 @@ export function attachUi(article: HTMLElement, send: SendMessage = message => ch
   result.setAttribute('aria-live', 'polite');
   section.append(button, result);
   shadow.append(style, section);
+  // X articles are flex rows; keep the control and results on their own full-width row.
+  article.style.flexWrap = 'wrap';
   article.append(host);
   let lastContext = JSON.stringify(extractTweetContext(article));
   controls.set(article, () => {

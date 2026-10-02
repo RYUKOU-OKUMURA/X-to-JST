@@ -57,3 +57,13 @@ No known code blocker remains in the automated scope. Release readiness remains 
 - [ ] Check candidate display and clipboard on X in both themes.
 - [ ] Optionally run `npm run test:jev` with the user's configured key and record the authenticated model/contract result separately from mocks.
 - [ ] Record the tested commit and Chrome version; update the AC table and close only conditions with actual evidence.
+
+## 2026-10-02 translated-post regression fix
+
+- The user's existing Comet tab (exposed by the browser connector as Chrome) was inspected at `https://x.com/thsottiaux/status/2105843926221660585`. X's translated `tweetText` contained Japanese with `lang="ja"`; selecting the original replaced it with English and `lang="en"`.
+- Before the fix, the Japanese full post returned no date expression. The complete English original also failed: Chrono parsed both `tomorrow 10am` and the unrelated `now` as dates. Both errors were reproduced on the user's actual tab; testing only the opening English sentence had missed the second failure.
+- The existing Chrono Japanese parsers/refiners now share its overlap/merge handling with English. Relative days still use each candidate's local posting date. Only standalone `now` is ignored; multiple clocks, ranges, nonzero seconds, and the explicitly guarded unsupported Japanese relative modifiers are rejected.
+- `npm run check` passed: strict TypeScript, 116 tests, and the MV3 build. Regression checks cover the full English/Japanese post, local midnight/year boundaries, shared clock syntax, unsupported relative dates, ranges, and translated DOM input without changing its language. Independent review identified dropped `毎週`/`翌週`/`毎月`/`翌月` modifiers; explicit rejection and regressions were added before finalization.
+- The installed extension's source was verified as this repository's `dist/`, then the extension and the same X tab were reloaded. With X's Japanese translation still displayed, the fixed extension rendered both `2026年10月3日（土）02:00 JST` and `03:00 JST`, retaining its ambiguity notice. No single candidate or authenticated API contract is asserted from this UI observation.
+- The live article used a flex row with no wrapping, squeezing the result host to about 100 px. Wrapping the article and giving the host a full row made both the post and host 566 px wide, with results below the post. The final live screenshot was visually inspected.
+- Immersive Translate's inserted elements were not observed inside this target post's text. General compatibility with its bilingual/translation-only modes, other X posts, and the remaining manual acceptance checks above remains unverified.

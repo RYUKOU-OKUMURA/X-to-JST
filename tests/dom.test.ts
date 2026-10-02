@@ -58,6 +58,19 @@ describe('X DOM and result UI', () => {
     expect(result).toMatchObject({ status: 'ambiguous', candidates: expect.any(Array), warning: expect.stringContaining('取得できません') });
     if (result.status === 'ambiguous') expect(result.candidates).toHaveLength(2);
   });
+  it('converts an auto-translated post and its English original without changing the display language', async () => {
+    const japanese = '明日午前10時PSTに、全有料ChatGPTアカウント向けのグローバルリセット着陸が行われます。現在は期待される速度で動作しています。';
+    const node = article(japanese); const send = vi.fn(async () => ({ ok: false, error: { code: 'KEY_NOT_SET' } }));
+    const root = attachUi(node, send).shadowRoot!;
+    root.querySelector<HTMLButtonElement>('button')!.click(); await flush();
+    expect(root.textContent).toContain('02:00 JST'); expect(root.textContent).toContain('03:00 JST');
+    expect(node.querySelector('[data-testid="tweetText"]')!.textContent).toBe(japanese);
+    expect(send).toHaveBeenLastCalledWith(expect.objectContaining({ payload: expect.objectContaining({ tweetText: japanese }) }));
+    node.querySelector('[data-testid="tweetText"]')!.textContent = "Global reset landing tomorrow 10am PST for all paid ChatGPT accounts. Apologies for the slow start with GPT-6.1 Sol, it's now back to running at expected speeds after the massive load spike in the first two days.";
+    root.querySelector<HTMLButtonElement>('button')!.click(); await flush();
+    expect(root.textContent).toContain('02:00 JST'); expect(root.textContent).toContain('03:00 JST');
+    expect(send).toHaveBeenCalledTimes(2);
+  });
   it.each(['high', 'low', 'unresolved'])('renders the correct state for a %s-confidence Jev judgment', async state => {
     const send = vi.fn(async (message: unknown) => {
       const ids = (message as { payload: { candidates: { id: string }[] } }).payload.candidates.map(c => c.id);

@@ -79,6 +79,7 @@ An optional, explicit `npm run test:jev` sends one synthetic post to the real Ty
 ## Date interpretation rules
 
 - `today`, `tonight`, and `tomorrow` use the posting date in each candidate's time zone. A time must be explicitly stated.
+- Xの日本語翻訳表示も、そのまま解析します。例: `明日午前10時PST`、`今日午後7時PDT`、`今夜午後7時PDT`、`2026年10月2日15時 UTC`。英語との重複候補と単独の `now` は除き、実際の複数時刻・時間範囲は引き続き拒否します。日本語の相対日付は対応語に限定し、`明後日`・`来週`・`翌週`・`毎週`・`翌月`・`毎月` 等の既知の未対応修飾語を検出した場合は拒否します。自由な日本語の日時表現すべてに対応するものではありません。
 - A bare weekday means that weekday on or after the local posting date. `next Friday` means Friday in the next ISO week (weeks start on Monday).
 - A month/day with no year uses the local posting year, without rolling to another year. A time with no date uses the local posting day. Both require a valid posting timestamp.
 - Fully specified year/month/day/time/zone works without a posting timestamp.
