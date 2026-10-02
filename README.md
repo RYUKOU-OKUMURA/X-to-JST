@@ -50,7 +50,41 @@ Tomorrow at 10am PST
 
 ## Status
 
-v0.1 — MVP specification
+v0.1 — MVP implementation, awaiting live Chrome/X acceptance. The implementation and automated checks cover the plan in [#1](https://github.com/RYUKOU-OKUMURA/X-to-JST/issues/1); live acceptance results are recorded in [docs/validation.md](docs/validation.md).
+
+## Local development
+
+Use Node.js 24 (`nvm use` if available).
+
+```sh
+npm ci
+npm run check
+```
+
+Build artifacts are written to `dist/`. In Chrome, open `chrome://extensions`, enable Developer mode, select **Load unpacked**, and choose `dist/`. Open X and click **🇯🇵 日本時間** beside a post.
+
+For development, run `npm run watch`. After a rebuild, reload the extension from `chrome://extensions` and reload the X tab. Options, manifest, and style changes are also watched. No API key is needed for unambiguous PT/ET/UTC/GMT conversions.
+
+Open the extension's **Extension options** to save or delete your TypeSafe key. Only a clicked, ambiguous post is sent to TypeSafe; the key is handled in the background and is never returned to the X page. Conversion history and post bodies are not persisted. Local storage is not an encrypted secret vault.
+
+```sh
+npm run test:browser  # compiled UI with mock Chrome runtime and X fixtures
+npm run test:chrome   # real unpacked extension; requires a permissive Chromium policy
+```
+
+Both commands use `/usr/bin/chromium` by default; set `CHROMIUM_PATH` for another compatible Chromium executable. `test:chrome` requires support for the CDP `Extensions.loadUnpacked` command and must not be used to bypass an administrator's extension policy. Screenshots and machine-readable results are saved under `test-results/`.
+
+An optional, explicit `npm run test:jev` sends one synthetic post to the real TypeSafe API using `TYPESAFE_API_KEY` from your environment. It can incur API charges and is never part of CI.
+
+## Date interpretation rules
+
+- `today`, `tonight`, and `tomorrow` use the posting date in each candidate's time zone. A time must be explicitly stated.
+- A bare weekday means that weekday on or after the local posting date. `next Friday` means Friday in the next ISO week (weeks start on Monday).
+- A month/day with no year uses the local posting year, without rolling to another year. A time with no date uses the local posting day. Both require a valid posting timestamp.
+- Fully specified year/month/day/time/zone works without a posting timestamp.
+- DST gaps are never silently normalized. DST overlaps retain both valid instants.
+- US abbreviations map to Los Angeles, New York, Chicago, and Denver. `CST` is not interpreted as China time. Multiple independent dates/ranges/zones, unsupported relative expressions, and nonzero seconds are explicitly rejected.
+- Low confidence, an unresolved answer, an unset key, or an API failure retains the code-generated candidates. Jev never computes a date or time.
 
 ## License
 

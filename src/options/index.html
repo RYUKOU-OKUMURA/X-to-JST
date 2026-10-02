@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="ja">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>X to JST 設定</title><link rel="stylesheet" href="options.css"></head>
+<body><main>
+  <h1>X to JST</h1><p>Xの海外日時表現を日本時間に変換します。</p>
+  <h2>TypeSafe APIキー</h2>
+  <p>曖昧な時刻を判定するときだけ、ボタンを押したポストの本文と日時候補をTypeSafeへ送信します。一意な時刻はAPIキーなしで変換できます。</p>
+  <form id="key-form"><label for="api-key">新しいAPIキー</label><input id="api-key" type="password" autocomplete="off" maxlength="512" spellcheck="false" required><button type="submit">保存</button><button id="delete" type="button">削除</button></form>
+  <p id="status" role="status" aria-live="polite">設定を確認しています…</p>
+  <p class="note">キーはこのChromeプロファイル内に保存します。暗号化された秘密保管庫ではありません。個人利用向けのMVPです。</p>
+  <p><a href="https://api.typesafe.ai/docs" target="_blank" rel="noreferrer">TypeSafe APIドキュメント</a></p>
+</main><script src="index.js"></script></body></html>
