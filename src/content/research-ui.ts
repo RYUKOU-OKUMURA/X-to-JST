@@ -5,7 +5,7 @@ import { collectResearchPosts } from './research-collector';
 type Send = (message: unknown) => Promise<unknown>;
 type Judgment = { id: string; score?: number; relation?: string; confidence: number };
 const RELATIONS: Record<string, string> = { followup: '関連情報（前後関係は不明）', change: '変更の候補', example: '具体例の候補', same: '同じ話の候補', unrelated: '無関係', unknown: '関係は不明' };
-const CSS = `:host{all:initial;position:fixed;right:16px;top:70px;bottom:20px;width:min(420px,calc(100vw - 32px));z-index:2147483646;color-scheme:light dark}*{box-sizing:border-box}section{height:100%;display:flex;flex-direction:column;font:14px/1.5 system-ui,sans-serif;background:Canvas;color:CanvasText;border:1px solid #81919e;border-radius:16px;box-shadow:0 8px 32px #0004;overflow:hidden}header,.controls,footer{padding:12px;border-bottom:1px solid #81919e}header,.row,nav{display:flex;gap:8px;align-items:center;flex-wrap:wrap}h2{font-size:17px;margin:0;flex:1}button,input,textarea{font:inherit}button{cursor:pointer;border:1px solid #81919e;border-radius:8px;padding:5px 10px;background:Canvas;color:CanvasText}button:disabled{opacity:.5;cursor:default}button[aria-pressed=true]{background:#1d6f9b;color:white}input[type=text],textarea{width:100%;background:Canvas;color:CanvasText;border:1px solid #81919e;border-radius:6px;padding:7px}input[type=checkbox]{width:18px;height:18px}textarea{min-height:50px;resize:vertical}button:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible{outline:3px solid #1d9bf0;outline-offset:2px}p{margin:6px 0}.small{font-size:12px;opacity:.85}#results{flex:1;overflow:auto;padding:12px}article{padding:10px 0;border-bottom:1px solid #81919e}article p{white-space:pre-wrap;overflow-wrap:anywhere}a{color:LinkText}footer{border-bottom:0;border-top:1px solid #81919e}details{margin-top:6px}nav{margin-bottom:8px}#anchor{max-height:110px;overflow:auto;border-left:3px solid #1d9bf0;padding-left:8px}#status{min-height:1.5em}@media(max-width:600px){:host{right:8px;top:48px;bottom:8px;width:calc(100vw - 16px)}}`;
+const CSS = `:host{all:initial;position:fixed;right:16px;top:70px;bottom:20px;width:min(520px,calc(100vw - 32px));z-index:2147483646;color-scheme:light dark}*{box-sizing:border-box}section{height:100%;display:flex;flex-direction:column;font:14px/1.6 system-ui,sans-serif;background:Canvas;color:CanvasText;border:1px solid #81919e;border-radius:16px;box-shadow:0 8px 32px #0004;overflow:hidden}header,.controls,footer{padding:12px 16px;border-bottom:1px solid #81919e;flex-shrink:0}.controls{max-height:60%;overflow:auto}header,.row,nav{display:flex;gap:8px;align-items:center;flex-wrap:wrap}h2{font-size:17px;margin:0;flex:1}button,input,textarea{font:inherit}button{cursor:pointer;border:1px solid #81919e;border-radius:8px;padding:5px 10px;background:Canvas;color:CanvasText}button:disabled{opacity:.5;cursor:default}button[aria-pressed=true]{background:#1d6f9b;color:white}input[type=text],textarea{width:100%;background:Canvas;color:CanvasText;border:1px solid #81919e;border-radius:6px;padding:9px}input[type=checkbox]{width:18px;height:18px}textarea{min-height:50px;resize:vertical}button:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible,summary:focus-visible{outline:3px solid #1d9bf0;outline-offset:2px}p{margin:8px 0}.small{font-size:12px;opacity:.85}#results{flex:1;min-height:0;overflow:auto;padding:4px 16px 16px}article{padding:16px 0;border-bottom:1px solid #81919e}article p{white-space:pre-wrap;overflow-wrap:anywhere}.judgment{font-size:12px;font-weight:600;color:#1d9bf0}a{color:LinkText}footer{border-bottom:0;border-top:1px solid #81919e;max-height:30%;overflow:auto}details{margin-top:8px}summary{cursor:pointer}nav{margin-bottom:8px}#anchor{max-height:110px;overflow:auto;border-left:3px solid #1d9bf0;padding-left:8px}#status{min-height:1.5em}@media(max-width:600px){:host{right:8px;top:48px;bottom:8px;width:calc(100vw - 16px)}}`;
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, text?: string): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag); if (text !== undefined) node.textContent = text; return node;
 }
@@ -30,16 +30,16 @@ export function createResearchUi(send: Send = message => chrome.runtime.sendMess
   const notesLabel = el('label'); const includeNotes = el('input'); includeNotes.type = 'checkbox'; notesLabel.className = 'small'; notesLabel.append(includeNotes, document.createTextNode('自分のメモもJevに送る'));
   const anchorView = el('p'); anchorView.id = 'anchor'; anchorView.hidden = true;
   const sourceStatus = el('p'); sourceStatus.className = 'small';
-  const status = el('p'); status.id = 'status'; status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
+  const status = el('div'); status.id = 'status'; status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
   const results = el('div'); results.id = 'results';
   const target = () => mode === 'collect' ? collected : saved.filter(post => mode !== 'relate' || post.id !== anchor?.id);
   const tabs = (['collect', 'saved', 'relate'] as const).map((value, i) => button(['拾う', '探す', 'つなげる'][i]!, () => {
     if (value !== 'collect') { stopCollect?.(); stopCollect = undefined; }
-    cancel(); mode = value; judgments.clear(); checked.clear(); render(); results.scrollTop = 0;
+    cancel(); mode = value; judgments.clear(); checked.clear(); status.textContent = ''; render(); results.scrollTop = 0;
     if (value !== 'collect') void loadSaved();
   })); nav.append(...tabs);
   const collect = button('収集を開始', () => {
-    cancel(); judgments.clear(); checked.clear(); collected = []; collectionReason = '';
+    cancel(); judgments.clear(); checked.clear(); collected = []; collectionReason = ''; status.textContent = '';
     stopCollect?.();
     stopCollect = collectResearchPosts(document.body, (posts, skipped, reason) => {
       collected = posts; collectionReason = reason ?? '';
@@ -56,7 +56,7 @@ export function createResearchUi(send: Send = message => chrome.runtime.sendMess
   const cancelButton = button('中断', cancel);
   const searchRow = el('div'); searchRow.className = 'row'; searchRow.append(search, localSearch, cancelButton);
   const collectRow = el('div'); collectRow.className = 'row'; collectRow.append(collect, stop);
-  const disclosure = el('p', 'Jevで探すと、目的と対象の表示本文・投稿日時をTypeSafeへ送ります。画像・動画・リンク先・未読の過去投稿は対象外です。'); disclosure.className = 'small';
+  const disclosure = el('p', 'Jev検索は目的・本文・投稿日時をTypeSafeに送信します。画像・動画・リンク先は検索しません。'); disclosure.className = 'small';
   controls.append(nav, collectRow, sourceStatus, anchorView, query, notesLabel, searchRow, disclosure, status);
   const footer = el('footer');
   const selectAll = button('収集した全件を選ぶ', () => { checked = new Set(collected.map(post => post.id)); renderCards(); });
@@ -69,11 +69,13 @@ export function createResearchUi(send: Send = message => chrome.runtime.sendMess
   });
   const importFile = el('input'); importFile.type = 'file'; importFile.accept = 'application/json,.json'; importFile.hidden = true;
   importFile.addEventListener('change', () => void importPosts());
-  const footerRow = el('div'); footerRow.className = 'row'; footerRow.append(selectAll, saveSelection, backup, restore, clear, importFile);
-  footer.append(footerRow, el('p', '保存はこのブラウザ内です。拡張を削除すると失われます。'), el('p', '保存本文は取得時点の表示内容です。')); footer.lastElementChild!.className = 'small';
+  const footerRow = el('div'); footerRow.className = 'row'; footerRow.append(selectAll, saveSelection);
+  const management = el('details'); const managementRow = el('div'); managementRow.className = 'row'; managementRow.append(backup, restore, clear, importFile);
+  management.append(el('summary', 'バックアップ・管理'), managementRow, el('p', '保存はこのブラウザ内です。拡張を削除すると失われます。'), el('p', '保存本文は取得時点の表示内容です。'));
+  footer.append(footerRow, management);
   section.append(header, controls, results, footer); shadow.append(el('style', CSS + ':host([hidden]),[hidden]{display:none!important}'), section); document.body.append(host);
-  query.addEventListener('input', () => { cancel(); judgments.clear(); renderCards(); });
-  includeNotes.addEventListener('change', () => { cancel(); judgments.clear(); renderCards(); });
+  query.addEventListener('input', () => { cancel(); judgments.clear(); renderCards(); status.textContent = '目的を変更しました。検索ボタンで探し直せます。'; });
+  includeNotes.addEventListener('change', () => { cancel(); judgments.clear(); renderCards(); status.textContent = 'メモの送信設定を変更しました。検索ボタンで探し直せます。'; });
   shadow.addEventListener('keydown', event => { if ((event as KeyboardEvent).key === 'Escape') { event.preventDefault(); setOpen(false); } });
 
   async function request(message: unknown) {
@@ -125,9 +127,10 @@ export function createResearchUi(send: Send = message => chrome.runtime.sendMess
     stop.disabled = !stopCollect; search.textContent = mode === 'relate' ? 'Jevでつなげる' : 'Jevで探す';
     anchorView.hidden = mode !== 'relate'; anchorView.textContent = anchor ? `比較元：${anchor.text}` : '「これとつなげる」で比較元の投稿を選んでください。';
     query.hidden = mode === 'relate'; localSearch.hidden = mode === 'relate';
-    if (mode !== 'collect') sourceStatus.textContent = `保存済み ${saved.length}件。選んだ範囲の全件を調べます。`;
+    if (mode !== 'collect') sourceStatus.textContent = `保存済み ${saved.length}件が対象です。X全体や未保存のブックマークは検索しません。`;
     cancelButton.disabled = !active; renderCards();
   }
+  const isCandidate = (item: Judgment) => mode === 'relate' ? item.relation !== 'unrelated' && item.relation !== 'unknown' : (item.score ?? 0) >= .5;
   function renderCards(localQuery?: string) {
     const focused = shadow.activeElement as HTMLElement | null;
     // Do not replace a card while its memo is being edited during collection.
@@ -138,6 +141,12 @@ export function createResearchUi(send: Send = message => chrome.runtime.sendMess
     if (judgments.size) posts.sort((a,b) => rank(b) - rank(a));
     results.replaceChildren();
     if (!posts.length) { results.append(el('p', mode === 'collect' ? '収集を開始して、気になる投稿を保存してください。' : '対象の投稿がありません。')); return; }
+    const others = el('details');
+    if (mode !== 'collect' && judgments.size) {
+      const count = posts.filter(post => !judgments.has(post.id) || !isCandidate(judgments.get(post.id)!)).length;
+      others.append(el('summary', `その他の投稿（${count}件）`));
+      if (count === posts.length) results.append(el('p', active ? '候補を探しています…' : 'ここまでの判定では近い候補がありません。別の目的で探すか、「拾う」で投稿を追加できます。'));
+    }
     for (const post of posts) {
       const card = el('article'); card.dataset.postId = post.id;
       const row = el('div'); row.className = 'row';
@@ -147,7 +156,11 @@ export function createResearchUi(send: Send = message => chrome.runtime.sendMess
       }
       const link = el('a', '元の投稿'); link.href = post.url; link.target = '_blank'; link.rel = 'noopener noreferrer'; row.append(link);
       const date = el('span', post.postedAtUtc ? new Date(post.postedAtUtc).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }) : '投稿日時不明'); date.className = 'small'; row.append(date);
-      card.append(row, el('p', post.text));
+      const preview = el('p', post.text.length > 140 ? `${post.text.slice(0,140)}…` : post.text); preview.className = 'preview';
+      card.append(row);
+      const detail = el('details'); detail.className = 'post-details';
+      detail.append(el('summary', post.text.length > 140 ? '全文・メモ・管理' : 'メモ・管理'));
+      if (post.text.length > 140) detail.append(el('p', post.text));
       const judgment = judgments.get(post.id);
       if (judgment) {
         card.dataset.relevance = String(judgment.score ?? '');
@@ -156,21 +169,26 @@ export function createResearchUi(send: Send = message => chrome.runtime.sendMess
         const anchorTime = anchor?.postedAtUtc ? Date.parse(anchor.postedAtUtc) : NaN;
         const followupLabel = candidateTime > anchorTime ? '比較元より後の関連情報（候補）' : candidateTime < anchorTime ? '比較元より前の関連情報（候補）' : '関連情報（前後関係は不明）';
         const label = mode === 'relate' ? judgment.confidence < .6 ? '関連候補（関係は未確定）' : judgment.relation === 'followup' ? followupLabel : RELATIONS[judgment.relation ?? 'unknown'] ?? '関連候補' : (judgment.score ?? 0) >= .5 ? '目的に近い候補' : '目的との関連が弱い候補';
-        card.append(el('p', label));
+        const badge = el('p', label); badge.className = 'judgment'; card.append(badge);
       } else if (active) card.append(el('p', '未判定'));
+      card.append(preview);
       const actions = el('div'); actions.className = 'row';
-      actions.append(button('これとつなげる', () => { stopCollect?.(); stopCollect = undefined; cancel(); anchor = post; mode = 'relate'; judgments.clear(); void loadSaved(); render(); results.scrollTop = 0; }));
+      actions.append(button('これとつなげる', () => { stopCollect?.(); stopCollect = undefined; cancel(); anchor = post; mode = 'relate'; judgments.clear(); status.textContent = ''; void loadSaved(); render(); results.scrollTop = 0; }));
       const stored = saved.find(item => item.id === post.id);
       if (stored) {
         const memo = el('textarea'); memo.value = stored.note; memo.maxLength = 2000; memo.setAttribute('aria-label', `投稿${post.id}の気になった理由`); memo.placeholder = 'なぜ気になった？（任意）';
-        card.append(memo);
-        actions.append(button('メモを保存', () => { cancel(); void mutate({ type:'RESEARCH_SAVE', post: { ...stored, note:memo.value }, update:true }, 'メモを保存しました。'); }), button('削除', () => {
+        detail.append(memo);
+        const editActions = el('div'); editActions.className = 'row';
+        editActions.append(button('メモを保存', () => { cancel(); void mutate({ type:'RESEARCH_SAVE', post: { ...stored, note:memo.value }, update:true }, 'メモを保存しました。'); }), button('削除', () => {
           if (!confirm('この保存投稿とメモを削除しますか？')) return;
           cancel(); void mutate({ type:'RESEARCH_DELETE', id:post.id }, '保存投稿を削除しました。');
-        }));
+        })); detail.append(editActions);
       } else actions.append(button('保存', () => void savePosts([post])));
-      card.append(actions); results.append(card);
+      card.append(actions);
+      if (stored || post.text.length > 140) card.append(detail);
+      if (mode !== 'collect' && judgments.size && (!judgment || !isCandidate(judgment))) others.append(card); else results.append(card);
     }
+    if (others.childElementCount > 1) results.append(others);
   }
   async function judge() {
     cancel(); const revision = generation; const candidates = target().map(post => ({ ...post }));
@@ -207,8 +225,10 @@ export function createResearchUi(send: Send = message => chrome.runtime.sendMess
         if (!reused) { if (isRecord(response.usage)) { inputTokens += Number(response.usage.input_tokens) || 0; outputTokens += Number(response.usage.output_tokens) || 0; } else usageKnown = false; }
         status.textContent = `${processed} / ${candidates.length}件を判定済み`; renderCards();
       }
-      const relevant = [...judgments.values()].filter(item => mode === 'relate' ? item.relation !== 'unrelated' && item.relation !== 'unknown' : (item.score ?? 0) >= .5);
-      status.textContent = `${processed}件判定・候補${relevant.length}件・${((performance.now()-start)/1000).toFixed(1)}秒（${usageKnown ? `入力${inputTokens} / 出力${outputTokens}トークン` : 'API使用量は未取得'}）。${relevant.length ? '' : '目的に近い候補は見つかりませんでした。'}`;
+      const relevant = [...judgments.values()].filter(isCandidate);
+      const stats = el('details'); stats.className = 'small';
+      stats.append(el('summary', '判定の詳細'), el('p', `${processed}件判定・${((performance.now()-start)/1000).toFixed(1)}秒（${usageKnown ? `入力${inputTokens} / 出力${outputTokens}トークン` : 'API使用量は未取得'}）`));
+      status.replaceChildren(el('p', `候補${relevant.length}件。${relevant.length ? '' : '目的に近い候補は見つかりませんでした。'}`), stats);
     } catch (error) { if (revision === generation) status.textContent = `${processed}件判定済み・${candidates.length-processed}件未判定。${(error as Error).message} 文字列検索も使えます。`; }
     finally { if (revision === generation) { active = false; runningId = undefined; search.disabled = false; cancelButton.disabled = true; renderCards(); } }
   }

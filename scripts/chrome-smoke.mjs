@@ -35,6 +35,7 @@ try {
       if (message.type === 'RESEARCH_IMPORT') { for (const post of message.backup.posts) if (!researchPosts.has(post.id)) researchPosts.set(post.id, post); return { ok: true, posts: [...researchPosts.values()] }; }
       if (message.type === 'RESEARCH_DELETE') { researchPosts.delete(message.id); return { ok: true, posts: [...researchPosts.values()] }; }
       if (message.type === 'RESEARCH_CLEAR') { researchPosts.clear(); return { ok: true, posts: [] }; }
+      if (message.type === 'RESEARCH_JUDGE') return { ok: true, results: message.payload.posts.map(post => ({ id: post.id, score: 0, confidence: 1 })), usage: { input_tokens: 20, output_tokens: 5 } };
       if (message.type === 'RESEARCH_CANCEL') return { ok: true };
       return { ok: false, error: { code: 'KEY_NOT_SET' } };
     });
@@ -111,12 +112,18 @@ try {
   await research.getByRole('button', { name: '拾う', exact: true }).click();
   await research.getByRole('button', { name: '収集を開始', exact: true }).click();
   const researchCard = research.locator('article[data-post-id="1"]');
+  const openMemo = async (card = researchCard) => {
+    const summary = card.locator('details.post-details:not([open]) > summary');
+    if (await summary.count()) await summary.click();
+  };
   await researchCard.waitFor();
   await researchCard.getByRole('checkbox').check();
   await research.getByRole('button', { name: '選んだ投稿を保存', exact: true }).click();
   await research.getByText('1件を保存しました。', { exact: true }).waitFor();
   await research.getByRole('button', { name: '収集を停止', exact: true }).click();
   await research.getByRole('button', { name: '探す', exact: true }).click();
+  assert.equal(await researchCard.getByRole('textbox', { name: '投稿1の気になった理由', exact: true }).isVisible(), false);
+  await openMemo();
   await researchCard.getByRole('textbox', { name: '投稿1の気になった理由', exact: true }).fill('smoke: remember this workflow');
   await researchCard.getByRole('button', { name: 'メモを保存', exact: true }).click();
   await research.getByText('メモを保存しました。', { exact: true }).waitFor();
@@ -124,12 +131,15 @@ try {
   if (!realExtension) await page.addScriptTag({ path: resolve(extension, 'content.js') });
   await page.getByRole('button', { name: '🇯🇵 日本時間', exact: true }).waitFor();
   await toggleResearch();
+  await researchCard.waitFor();
+  await openMemo();
   await researchCard.getByRole('textbox', { name: '投稿1の気になった理由', exact: true }).waitFor();
   assert.equal(await researchCard.getByRole('textbox', { name: '投稿1の気になった理由', exact: true }).inputValue(), 'smoke: remember this workflow');
   assert.equal(await researchCard.getByRole('link', { name: '元の投稿', exact: true }).getAttribute('href'), 'https://x.com/author/status/1');
   assert.equal(await researchCard.getByText('Tomorrow at 10am PST', { exact: true }).count(), 1);
   assert.equal(await page.evaluate(() => document.body.textContent.includes('chrome-smoke-test-key')), false);
   const downloaded = page.waitForEvent('download');
+  await research.getByText('バックアップ・管理', { exact: true }).click();
   await research.getByRole('button', { name: '書き出し', exact: true }).click();
   const download = await downloaded;
   const backupText = await readFile(await download.path(), 'utf8');
@@ -142,6 +152,7 @@ try {
   assert.equal(backupText.includes('apiKey'), false);
   await research.locator('input[type=file]').setInputFiles({ name: 'smoke-backup.json', mimeType: 'application/json', buffer: Buffer.from(backupText) });
   await research.getByText('未登録の投稿を復元しました。既存の本文とメモは保持しています。', { exact: true }).waitFor();
+  await openMemo();
   assert.equal(await researchCard.getByRole('textbox', { name: '投稿1の気になった理由', exact: true }).inputValue(), 'smoke: remember this workflow');
   for (const all of [false, true]) {
     page.once('dialog', dialog => dialog.accept());
@@ -150,12 +161,33 @@ try {
     assert.equal(await researchCard.count(), 0, 'Deleted fixture post must be absent before restore');
     await research.locator('input[type=file]').setInputFiles({ name: 'smoke-backup.json', mimeType: 'application/json', buffer: Buffer.from(backupText) });
     await research.getByText('未登録の投稿を復元しました。既存の本文とメモは保持しています。', { exact: true }).waitFor();
+    await openMemo();
     assert.equal(await researchCard.getByRole('textbox', { name: '投稿1の気になった理由', exact: true }).inputValue(), 'smoke: remember this workflow');
     assert.equal(await researchCard.getByText('Tomorrow at 10am PST', { exact: true }).count(), 1);
     assert.equal(await researchCard.getByRole('link', { name: '元の投稿', exact: true }).getAttribute('href'), 'https://x.com/author/status/1');
   }
   assert.deepEqual(errors, []);
   await mkdir('test-results', { recursive: true });
+  if (!realExtension) {
+    await research.getByRole('textbox', { name: '探したいこと', exact: true }).fill('YouTubeショート動画の再生数を伸ばすコツ');
+    await research.getByRole('button', { name: 'Jevで探す', exact: true }).click();
+    await research.getByText('候補0件。目的に近い候補は見つかりませんでした。', { exact: true }).waitFor();
+    assert.equal(await research.locator('#results > article').count(), 0);
+    assert.equal(await researchCard.isVisible(), false, 'Unmatched post must be folded by default');
+    await research.getByText('バックアップ・管理', { exact: true }).click();
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await research.screenshot({ path: 'test-results/research-empty-fixture.png' });
+    await page.setViewportSize({ width: 390, height: 844 });
+    const bounds = await research.boundingBox();
+    assert.ok(bounds && bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= 390 && bounds.y + bounds.height <= 844);
+    await research.screenshot({ path: 'test-results/research-narrow-fixture.png' });
+    await research.getByText('その他の投稿（1件）', { exact: true }).click();
+    await researchCard.waitFor();
+    await openMemo();
+    assert.equal(await researchCard.getByRole('textbox', { name: '投稿1の気になった理由', exact: true }).inputValue(), 'smoke: remember this workflow');
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.emulateMedia({ colorScheme: 'light' });
+  }
   await page.screenshot({ path: 'test-results/chrome-light.png', fullPage: true });
   await page.emulateMedia({ colorScheme: 'dark' });
   await page.screenshot({ path: 'test-results/chrome-dark.png', fullPage: true });
@@ -173,6 +205,8 @@ try {
     await restartedPage.getByRole('button', { name: '🇯🇵 日本時間', exact: true }).waitFor();
     await toggleResearch();
     const restartedCard = restartedPage.getByRole('dialog', { name: 'X 調べもの', exact: true }).locator('article[data-post-id="1"]');
+    await restartedCard.waitFor();
+    await openMemo(restartedCard);
     await restartedCard.getByRole('textbox', { name: '投稿1の気になった理由', exact: true }).waitFor();
     assert.equal(await restartedCard.getByRole('textbox', { name: '投稿1の気になった理由', exact: true }).inputValue(), 'smoke: remember this workflow');
     assert.equal(await restartedCard.getByText('Tomorrow at 10am PST', { exact: true }).count(), 1);
@@ -182,6 +216,7 @@ try {
   const report = { browser: context.browser()?.version(), date: new Date().toISOString(), result: 'passed', mode: realExtension ? 'real-extension-with-X-fixture' : 'compiled-UI-with-mocked-runtime',
     checks: ['unique JST rendering', 'key save/reload/delete', 'unset-key fallback', 'SPA/additional-post injection', 'copy', 'no key in X DOM', 'research panel open', 'explicit collection and selection save', 'research memo save', 'research post and memo persist across page reload', 'backup download version/post/memo and no API key', 'same-backup restore preserves memo', 'single post delete and backup restore preserve text/memo/URL', 'clear saved posts and backup restore preserve text/memo/URL', ...(realExtension ? ['MV3 load', 'real content-script storage denial', 'research post and memo persist across browser restart with same profile'] : [])],
     limitations: ['X page is a deterministic fixture; live X DOM is not tested.', 'No paid TypeSafe request is made.', ...(!realExtension ? ['Mock persistence is checked across page reload, not browser restart.'] : []), 'Panel opening uses its runtime toggle message; a toolbar action click is not simulated.', ...(!realExtension ? ['Chrome runtime and research storage are mocked in memory; MV3 loading and real storage persistence/isolation are not verified.'] : [])] };
+  if (!realExtension) report.checks.push('zero-candidate search folds unmatched posts', '390px research panel stays within viewport', 'folded posts retain original memo');
   await writeFile(`test-results/${realExtension ? 'chrome' : 'browser'}-smoke.json`, JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report, null, 2));
 } finally {

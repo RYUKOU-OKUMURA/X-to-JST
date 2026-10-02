@@ -53,7 +53,7 @@ Tomorrow at 10am PST
 
 ## Status
 
-v0.1 — MVP implementation, awaiting live Chrome/X acceptance. The implementation and automated checks cover the plan in [#1](https://github.com/RYUKOU-OKUMURA/X-to-JST/issues/1); live acceptance results are recorded in [docs/validation.md](docs/validation.md).
+v0.2.0 — JST conversion and on-demand research are implemented. Research acceptance remains incomplete; confirmed behavior and remaining evaluation are recorded in [docs/research-validation.md](docs/research-validation.md).
 
 ## Local development
 
@@ -75,8 +75,12 @@ Open the extension's **Extension options** to save or delete your TypeSafe key. 
 Xで拡張アイコンを押すと、必要なときだけパネルを開けます。
 
 - **拾う**：収集を開始し、手動スクロールで読み込んだ投稿を選んで保存。時刻表現のない投稿も対象です。
-- **探す**：保存投稿を目的に合わせてJevで並べ替え。「文字で探す」はAPIキーなしで使えます。
+- **探す**：保存投稿を目的に合わせてJevで判定し、近い候補を先に表示。「文字で探す」はAPIキーなしで使えます。
 - **つなげる**：「これとつなげる」で1投稿を選び、保存投稿から続報・具体例などの候補を比較します。
+
+ブックマーク・タイムライン・検索結果など、画面に読み込んだ投稿を「拾う」で保存してから、「Google Workspaceで議事録を自動化したい」のように用途を入力して探します。X全体や未保存のブックマークを新しく検索する機能ではありません。
+
+検索後の「その他の投稿」は関連が弱い投稿・関係が不明な投稿・未判定分を折りたたんでいます。本文は短いプレビューから全文を開けます。メモと投稿削除は各投稿の「メモ・管理」（長い本文は「全文・メモ・管理」）、書き出し・復元・全件削除は下部の「バックアップ・管理」から操作します。
 
 保存はこのブラウザ内の最大200件・本文とメモ合計2MiBです。任意メモ、JSON書き出し・復元・削除に対応。復元は既存の本文とメモを保持し、未登録の投稿だけ追加します。拡張削除で保存データも失われます。
 

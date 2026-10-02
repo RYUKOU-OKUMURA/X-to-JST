@@ -12,7 +12,7 @@ function article(id = '1', text = 'AIで議事録を作る手順') {
   const time = document.createElement('time'); time.dateTime = '2026-10-02T00:00:00Z'; link.append(time); node.append(body,link); document.body.append(node); return node;
 }
 function post(id='1',text='議事録の自動化') { return makePost({text,url:`https://x.com/author/status/${id}`},'timeline')!; }
-function find(root:ShadowRoot,text:string) { const button = [...root.querySelectorAll('button')].find(node=>node.textContent===text); if(!button) throw new Error(text); return button; }
+function find(root:ParentNode,text:string) { const button = [...root.querySelectorAll('button')].find(node=>node.textContent===text); if(!button) throw new Error(text); return button; }
 afterEach(()=>{ cleanups.splice(0).forEach(fn=>fn()); document.body.replaceChildren(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 describe('research workflow',()=>{
   it('collects text without clocks only on explicit start, skips ambiguous quotes and stops on dispose',async()=>{
@@ -77,12 +77,26 @@ describe('research workflow',()=>{
     const ui=createResearchUi(send);cleanups.push(ui.dispose);ui.open();await flush();const root=ui.host.shadowRoot!;const input=root.querySelector<HTMLInputElement>('input[type=text]')!;input.value='仕事を減らす';find(root,'Jevで探す').click();await flush();
     const call=send.mock.calls.find(call=>(call[0] as {type:string}).type==='RESEARCH_JUDGE')![0] as {payload:{includeNotes:boolean;requestId:string}};expect(call.payload.includeNotes).toBe(false);
     input.value='別の目的';input.dispatchEvent(new Event('input'));finish({ok:true,results:[{id:'1',score:1,confidence:1}]});await flush();
-    expect(root.textContent).not.toContain('目的に近い候補');expect(root.querySelector('#status')!.textContent).toContain('中断');expect(send).toHaveBeenCalledWith({type:'RESEARCH_CANCEL',requestId:call.payload.requestId});
+    expect(root.textContent).not.toContain('目的に近い候補');expect(root.querySelector('#status')!.textContent).toContain('目的を変更');expect(send).toHaveBeenCalledWith({type:'RESEARCH_CANCEL',requestId:call.payload.requestId});
   });
   it('keeps raw source and reports absent relevant results without claiming a match',async()=>{
     const send=vi.fn(async(message:unknown)=>(message as {type:string}).type==='RESEARCH_JUDGE'?{ok:true,results:[{id:'1',score:0,confidence:1}],usage:{input_tokens:20,output_tokens:5}}:{ok:true,posts:[post()]});
     const ui=createResearchUi(send);cleanups.push(ui.dispose);ui.open();await flush();const root=ui.host.shadowRoot!;root.querySelector<HTMLInputElement>('input[type=text]')!.value='関係のないテーマ';find(root,'Jevで探す').click();await flush();
     expect(root.querySelector('#status')!.textContent).toContain('候補0件');expect(root.querySelector('#status')!.textContent).toContain('入力20 / 出力5');expect(root.querySelector('a')!.href).toBe('https://x.com/author/status/1');
+    expect(root.querySelectorAll('#results > article')).toHaveLength(0);
+    const others=root.querySelector<HTMLDetailsElement>('#results > details')!;expect(others.open).toBe(false);expect(others.querySelector('summary')!.textContent).toBe('その他の投稿（1件）');expect(others.querySelector('article')!.textContent).toContain('議事録の自動化');
+    expect(root.querySelector<HTMLDetailsElement>('#status > details')!.open).toBe(false);
+    find(root,'これとつなげる').click();await flush();expect(root.querySelector('#status')!.textContent).toBe('');
+  });
+  it('puts only matching candidates first, with full source and memo controls available on demand',async()=>{
+    const text='Google Workspaceで議事録を作る手順。'.repeat(15);const posts=[post('1','関係のない投稿'),{...post('2',text),note:'あとで試したい'}];
+    const send=vi.fn(async(message:unknown)=>(message as {type:string}).type==='RESEARCH_JUDGE'?{ok:true,results:[{id:'1',score:.2,confidence:1},{id:'2',score:.9,confidence:1}]}:{ok:true,posts});
+    const ui=createResearchUi(send);cleanups.push(ui.dispose);ui.open();await flush();const root=ui.host.shadowRoot!;root.querySelector<HTMLInputElement>('input[type=text]')!.value='議事録の自動化';find(root,'Jevで探す').click();await flush();
+    expect([...root.querySelectorAll<HTMLElement>('#results > article')].map(card=>card.dataset.postId)).toEqual(['2']);
+    const card=root.querySelector<HTMLElement>('#results > article')!;expect(card.querySelector('.preview')!.textContent).toHaveLength(141);
+    const detail=card.querySelector<HTMLDetailsElement>('details.post-details')!;expect(detail.open).toBe(false);expect(detail.querySelector('p')!.textContent).toBe(text);expect(detail.querySelector('textarea')!.value).toBe('あとで試したい');
+    detail.open=true;expect(find(detail,'削除')).toBeDefined();
+    const management=root.querySelector<HTMLDetailsElement>('footer details')!;expect(management.open).toBe(false);expect(management.textContent).toContain('拡張を削除すると失われます');
   });
   it('does not restore a deleted card when an earlier judgment completes',async()=>{
     let saved=[post()];let finish!:(value:unknown)=>void;vi.stubGlobal('confirm',vi.fn(()=>true));
