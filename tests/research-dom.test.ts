@@ -83,4 +83,9 @@ describe('research workflow',()=>{
     const ui=createResearchUi(send);cleanups.push(ui.dispose);ui.open();await flush();const root=ui.host.shadowRoot!;find(root,'これとつなげる').click();await flush();find(root,'Jevでつなげる').click();await flush();
     const call=send.mock.calls.find(call=>(call[0] as {type:string}).type==='RESEARCH_JUDGE')![0] as {payload:{posts:ResearchPost[];anchor:ResearchPost;mode:string}};expect(call.payload.mode).toBe('relate');expect(call.payload.anchor.id).toBe('1');expect(call.payload.posts.map(post=>post.id)).toEqual(['2']);expect(root.textContent).toContain('関係は未確定');
   });
+  it('distinguishes missing API usage from zero new tokens when reusing results',async()=>{
+    const send=vi.fn(async(message:unknown)=>(message as {type:string}).type==='RESEARCH_JUDGE'?{ok:true,results:[{id:'1',score:1,confidence:1}]}:{ok:true,posts:[post()]});
+    const ui=createResearchUi(send);cleanups.push(ui.dispose);ui.open();await flush();const root=ui.host.shadowRoot!;root.querySelector<HTMLInputElement>('input[type=text]')!.value='自動化';find(root,'Jevで探す').click();await flush();expect(root.querySelector('#status')!.textContent).toContain('API使用量は未取得');
+    find(root,'Jevで探す').click();await flush();expect(root.querySelector('#status')!.textContent).toContain('入力0 / 出力0');expect(send.mock.calls.filter(c=>(c[0] as {type:string}).type==='RESEARCH_JUDGE')).toHaveLength(1);
+  });
 });

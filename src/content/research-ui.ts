@@ -177,7 +177,7 @@ export function createResearchUi(send: Send = message => chrome.runtime.sendMess
     if (context !== cacheContext) { cached.clear(); cacheContext = context; }
     stopCollect?.(); stopCollect = undefined;
     judgments.clear(); active = true; search.disabled = true; cancelButton.disabled = false;
-    const start = performance.now(); let processed = 0; let inputTokens = 0; let outputTokens = 0;
+    const start = performance.now(); let processed = 0; let inputTokens = 0; let outputTokens = 0; let usageKnown = true;
     status.textContent = `0 / ${candidates.length}件を判定中…`; renderCards();
     results.scrollTop = 0;
     try {
@@ -201,11 +201,11 @@ export function createResearchUi(send: Send = message => chrome.runtime.sendMess
         }
         cached.set(cacheKey, response);
         processed += batch.length;
-        if (!reused && isRecord(response.usage)) { inputTokens += Number(response.usage.input_tokens) || 0; outputTokens += Number(response.usage.output_tokens) || 0; }
+        if (!reused) { if (isRecord(response.usage)) { inputTokens += Number(response.usage.input_tokens) || 0; outputTokens += Number(response.usage.output_tokens) || 0; } else usageKnown = false; }
         status.textContent = `${processed} / ${candidates.length}件を判定済み`; renderCards();
       }
       const relevant = [...judgments.values()].filter(item => mode === 'relate' ? item.relation !== 'unrelated' && item.relation !== 'unknown' : (item.score ?? 0) >= .5);
-      status.textContent = `${processed}件判定・候補${relevant.length}件・${((performance.now()-start)/1000).toFixed(1)}秒（入力${inputTokens} / 出力${outputTokens}トークン）。${relevant.length ? '' : '目的に近い候補は見つかりませんでした。'}`;
+      status.textContent = `${processed}件判定・候補${relevant.length}件・${((performance.now()-start)/1000).toFixed(1)}秒（${usageKnown ? `入力${inputTokens} / 出力${outputTokens}トークン` : 'API使用量は未取得'}）。${relevant.length ? '' : '目的に近い候補は見つかりませんでした。'}`;
     } catch (error) { if (revision === generation) status.textContent = `${processed}件判定済み・${candidates.length-processed}件未判定。${(error as Error).message} 文字列検索も使えます。`; }
     finally { if (revision === generation) { active = false; runningId = undefined; search.disabled = false; cancelButton.disabled = true; renderCards(); } }
   }
