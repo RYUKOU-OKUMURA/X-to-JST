@@ -84,6 +84,16 @@ describe('research workflow',()=>{
     const ui=createResearchUi(send);cleanups.push(ui.dispose);ui.open();await flush();const root=ui.host.shadowRoot!;root.querySelector<HTMLInputElement>('input[type=text]')!.value='関係のないテーマ';find(root,'Jevで探す').click();await flush();
     expect(root.querySelector('#status')!.textContent).toContain('候補0件');expect(root.querySelector('#status')!.textContent).toContain('入力20 / 出力5');expect(root.querySelector('a')!.href).toBe('https://x.com/author/status/1');
   });
+  it('does not restore a deleted card when an earlier judgment completes',async()=>{
+    let saved=[post()];let finish!:(value:unknown)=>void;vi.stubGlobal('confirm',vi.fn(()=>true));
+    const send=vi.fn(async(message:unknown)=>{const value=message as {type:string;id?:string};if(value.type==='RESEARCH_JUDGE')return new Promise(resolve=>{finish=resolve;});if(value.type==='RESEARCH_DELETE')saved=saved.filter(p=>p.id!==value.id);return {ok:true,posts:saved};});
+    const ui=createResearchUi(send);cleanups.push(ui.dispose);ui.open();await flush();const root=ui.host.shadowRoot!;root.querySelector<HTMLInputElement>('input[type=text]')!.value='議事録';find(root,'Jevで探す').click();await flush();
+    const call=send.mock.calls.find(call=>(call[0] as {type:string}).type==='RESEARCH_JUDGE')![0] as {payload:{requestId:string}};
+    find(root,'削除').click();await flush();expect(root.querySelectorAll('article')).toHaveLength(0);
+    finish({ok:true,results:[{id:'1',score:1,confidence:1}]});await flush();
+    expect(root.querySelectorAll('article')).toHaveLength(0);expect(root.querySelector('#status')!.textContent).toBe('保存投稿を削除しました。');expect(find(root,'中断').disabled).toBe(true);
+    expect(send).toHaveBeenCalledWith({type:'RESEARCH_CANCEL',requestId:call.payload.requestId});
+  });
   it('compares one anchor against saved posts and keeps uncertainty visible',async()=>{
     const send=vi.fn(async(message:unknown)=>(message as {type:string}).type==='RESEARCH_JUDGE'?{ok:true,results:[{id:'2',relation:'change',confidence:.2}]}:{ok:true,posts:[post(),post('2','同じツールの別の話')]});
     const ui=createResearchUi(send);cleanups.push(ui.dispose);ui.open();await flush();const root=ui.host.shadowRoot!;find(root,'これとつなげる').click();await flush();find(root,'Jevでつなげる').click();await flush();

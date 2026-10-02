@@ -145,3 +145,38 @@ it('suppresses a high score for a different named subject and rejects missing or
     { ...different, probabilities: { match: 0, different: .5, unspecified: 0 } },
   ]) expect(decodeResearchAnswers({ answers: { post_0: high, subject_match: guard } }, payload)).toBeUndefined();
 });
+it.each(['SAVE', 'IMPORT'])('preserves existing data on failed %s writes and keeps the mutation queue usable', async operation => {
+  const storage = store(); const service = createResearchService(storage as unknown as chrome.storage.LocalStorageArea);
+  await service.handle({ type: 'RESEARCH_SAVE', post: post() }, sender);
+  const before = { ...storage.data };
+  storage.set.mockRejectedValueOnce(new Error('write denied'));
+  const message = operation === 'SAVE'
+    ? { type: 'RESEARCH_SAVE', post: { ...post(), text: 'new body', note: 'new note' }, update: true }
+    : { type: 'RESEARCH_IMPORT', backup: { version: 1, posts: [post('124')] } };
+  expect(await service.handle(message, sender)).toMatchObject({ ok: false, error: { code: 'STORAGE_ERROR' } });
+  expect(storage.data).toEqual(before);
+  expect(await service.handle({ type: 'RESEARCH_LIST' }, sender)).toEqual({ ok: true, posts: [post()] });
+  expect(storage.remove).not.toHaveBeenCalled();
+  expect(await service.handle({ type: 'RESEARCH_SAVE', post: post('125') }, sender)).toMatchObject({ ok: true, posts: expect.arrayContaining([post(), post('125')]) });
+  expect(storage.data.apiKey).toBe('secret');
+});
+it('does not resurrect a deleted post when an abort-ignoring judgment completes late', async () => {
+  const storage = store(); let finish!: (response: Response) => void; let started!: () => void;
+  const entered = new Promise<void>(resolve => { started = resolve; });
+  let signal!: AbortSignal;
+  const fetcher: typeof fetch = vi.fn((_url, init) => {
+    signal = init!.signal!; started();
+    return new Promise<Response>(resolve => { finish = resolve; });
+  });
+  const service = createResearchService(storage as unknown as chrome.storage.LocalStorageArea, fetcher);
+  await service.handle({ type: 'RESEARCH_SAVE', post: post() }, sender);
+  const pending = service.handle({ type: 'RESEARCH_JUDGE', payload: { mode: 'search', query: 'AI', posts: [post()], includeNotes: false, requestId: 'deleted' } }, sender);
+  await entered;
+  expect(await service.handle({ type: 'RESEARCH_DELETE', id: post().id }, sender)).toEqual({ ok: true, posts: [] });
+  expect(signal.aborted).toBe(true);
+  finish(scoreResponse({ input_tokens: 100, output_tokens: 10 }));
+  expect(await pending).toMatchObject({ ok: false, error: { code: 'CANCELLED' } });
+  expect(await service.handle({ type: 'RESEARCH_LIST' }, sender)).toEqual({ ok: true, posts: [] });
+  expect(storage.data).toEqual({ apiKey: 'secret' });
+  expect(storage.set).toHaveBeenCalledTimes(1);
+});

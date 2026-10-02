@@ -4,7 +4,7 @@
 
 ## 自動チェック
 
-- `npm run check`：型検査・既存JSTを含む159テスト・ビルド（v0.2.0）。
+- `npm run check`：型検査・既存JSTを含む163テスト・ビルド（v0.2.0）。
 - `CHROMIUM_PATH='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' npm run test:browser`：コンパイル済みUI＋mock runtime。
 - 同じ環境の `npm run test:chrome`：Chrome 154.0.8037.97、実MV3＋隔離した一時プロファイル＋固定X DOM。
 - 実拡張で明示収集・選択保存・メモ・ページ再読み込み・同一プロファイルのブラウザ再起動後の本文/メモ/URL保持を確認。JSON書き出しの形式・キー不在と、同じバックアップの復元後のメモ保持を確認。
@@ -129,3 +129,14 @@ OpenClawの新しい投稿を比較元にした際、古い版の投稿がfollow
 | Esc・フォーカス・狭い画面・JSTを保つ | 上記Cometのキーボード/viewport、既存JST表示とChromeのコピー/SPA回帰 | 全ての画面サイズ・投稿形式の保証ではない |
 
 具体的探し物の質問はユーザーへ提示済み。未回答を受け入れ・同意と扱わず、ゴールはactiveのまま。
+
+## 保存失敗・削除後の遅延判定（追加の自動検証）
+
+設計書のデータ保護条件について既存テストを照合し、4ケースを追加した。製品コードは変更していない。
+
+- backendで既存本文更新のSAVEと、新規ID追加のIMPORTについてstorage.setの拒否を再現。STORAGE_ERRORを返し、既存本文・メモ・APIキーが同一、削除処理なし、次の正常保存が成功することを確認。
+- backendでabortを無視して後から有効な応答を返すfetcherを使用。判定中に対象を削除するとsignalがabortされ、遅い応答はCANCELLED。LISTは空のまま、キーは保持され、削除投稿を再保存しないことを確認。
+- DOMで判定中の保存投稿を削除し、後から高スコアの結果を返した。カード0件・削除完了表示・中断ボタン無効を維持し、元リクエストのRESEARCH_CANCEL送信も確認。
+- backend対象18件、DOM対象20件がpass。その後 `npm run check` で163件・型検査・ビルドがpass。
+
+拒否するstorage/fetcherとDOMを使った再現テストであり、実Cometのディスク書込障害や削除操作を実測したとはしない。追加のテストと完了報告は独立レビューの対象にする。
