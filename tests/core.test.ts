@@ -3,7 +3,7 @@ import { Settings } from 'luxon';
 import { parseExpression } from '../src/core/parser';
 import { buildCandidates } from '../src/core/candidate-builder';
 import { resolveLocal, chooseCandidate } from '../src/core/resolver';
-import { copyText, formatJst } from '../src/core/formatter';
+import { copyText, formatJst, formatSource } from '../src/core/formatter';
 const POST = '2026-10-02T02:14:00Z';
 function times(text: string, post: string | undefined = POST) {
   const result = resolveLocal({ text, postedAtUtc: post });
@@ -112,7 +112,14 @@ describe('deterministic date conversion', () => {
     if ('reason' in expression) throw new Error(expression.reason);
     const c = buildCandidates(expression, POST)[0]!;
     expect(formatJst(c)).toBe('2026年10月3日（土）02:00 JST');
+    expect(formatSource(c)).toBe('2026/10/2 10:00 UTC-07:00');
     expect(copyText(c)).toBe('日本時間 2026年10月3日（土）02:00 JST');
+  });
+  it('preserves the source offset and date when the Japan comparison crosses a year', () => {
+    const result = resolveLocal({ text: '2026-12-31 23:30 UTC-08:00' });
+    if (result.status !== 'resolved') throw new Error('Expected one candidate');
+    expect(formatSource(result.candidate)).toBe('2026/12/31 23:30 UTC-08:00');
+    expect(formatJst(result.candidate)).toBe('2027年1月1日（金）16:30 JST');
   });
   it('applies confidence and probability-gap thresholds', () => {
     const resolution = resolveLocal({ text: 'Tomorrow at 10am PST', postedAtUtc: POST });

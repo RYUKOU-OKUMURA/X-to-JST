@@ -1,5 +1,5 @@
 import { isRecord, type ResolveMessage, type Resolution, type TimeCandidate, type TweetContext } from '../types/messages';
-import { copyText, formatJst } from '../core/formatter';
+import { copyText, formatJst, formatSource } from '../core/formatter';
 import { chooseCandidate, resolveLocal, CONFIDENCE_THRESHOLD, PROBABILITY_GAP } from '../core/resolver';
 import { validateChoice } from '../background/jev-client';
 import { extractTweetContext } from './x-dom';
@@ -59,11 +59,11 @@ export function attachUi(article: HTMLElement, send: SendMessage = message => ch
       result.replaceChildren();
     }
   });
-  function candidateCard(candidate: TimeCandidate, timezoneToken: string) {
+  function candidateCard(candidate: TimeCandidate) {
     const card = element('div'); card.className = 'candidate';
+    const source = element('span', formatSource(candidate)); source.className = 'label';
     const time = element('span', formatJst(candidate)); time.className = 'time';
-    const label = element('span', candidate.sourceZone.includes('/') ? '現地時間' : `${timezoneToken}固定`); label.className = 'label';
-    card.append(time, label);
+    card.append(source, element('span', '→'), time);
     const copy = element('button', 'コピー'); copy.type = 'button';
     copy.setAttribute('aria-label', `${formatJst(candidate)}をコピー`);
     copy.addEventListener('click', async () => {
@@ -89,8 +89,9 @@ export function attachUi(article: HTMLElement, send: SendMessage = message => ch
       if (resolution.status === 'unsupported') result.append(element('p', resolution.reason));
       else {
         const candidates = resolution.status === 'resolved' ? [resolution.candidate] : resolution.candidates;
+        result.append(element('p', '向こうの時刻 → 日本時間'));
         if (resolution.status === 'ambiguous') result.append(element('p', `⚠️ ${candidates.length}候補・未確定`));
-        candidates.forEach(candidate => { result.append(candidateCard(candidate, resolution.expression.timezoneToken)); });
+        candidates.forEach(candidate => { result.append(candidateCard(candidate)); });
         const details = element('details'); details.append(element('summary', '詳細'));
         if (resolution.status === 'ambiguous' && resolution.warning) details.append(element('p', resolution.warning));
         candidates.forEach(candidate => {

@@ -96,8 +96,10 @@ describe('X DOM and result UI', () => {
     root.querySelector<HTMLButtonElement>('button')!.click(); await flush();
     expect(root.querySelector('h3')).toBeNull();
     expect([...root.querySelectorAll('.candidate')].map(row => row.textContent)).toEqual([
-      '2026年10月3日（土）02:00 JST現地時間コピー', '2026年10月3日（土）03:00 JSTPST固定コピー',
+      '2026/10/2 10:00 UTC-07:00→2026年10月3日（土）02:00 JSTコピー',
+      '2026/10/2 10:00 UTC-08:00→2026年10月3日（土）03:00 JSTコピー',
     ]);
+    expect(root.querySelector('.result')!.textContent).toContain('向こうの時刻 → 日本時間');
     const details = root.querySelector('details')!;
     expect(details.open).toBe(false);
     expect(details.textContent).toContain('TypeSafe / Jev：応答確認済み');
