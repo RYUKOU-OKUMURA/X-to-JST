@@ -1,5 +1,6 @@
 import { isRecord } from '../types/messages';
 import { MAX_RESEARCH_BATCH, MAX_RESEARCH_BATCH_CHARS, validatePost, type ResearchPost } from '../core/research';
+import { canonicalizeSearchQuery, searchTextIncludes } from '../core/search-query';
 import { collectResearchPosts } from './research-collector';
 
 type Send = (message: unknown) => Promise<unknown>;
@@ -136,7 +137,7 @@ export function createResearchUi(send: Send = message => chrome.runtime.sendMess
     // Do not replace a card while its memo is being edited during collection.
     if (focused?.tagName === 'TEXTAREA') return;
     let posts = [...target()];
-    if (localQuery) posts = posts.filter(post => `${post.text}\n${post.note}`.toLocaleLowerCase().includes(localQuery.toLocaleLowerCase()));
+    if (localQuery) posts = posts.filter(post => searchTextIncludes(post.text, localQuery) || searchTextIncludes(post.note, localQuery));
     const rank = (post: ResearchPost) => { const item = judgments.get(post.id); return mode === 'relate' ? !item ? -1 : item.relation === 'unrelated' || item.relation === 'unknown' ? 0 : item.confidence : item?.score ?? -1; };
     if (judgments.size) posts.sort((a,b) => rank(b) - rank(a));
     results.replaceChildren();
@@ -192,7 +193,7 @@ export function createResearchUi(send: Send = message => chrome.runtime.sendMess
   }
   async function judge() {
     cancel(); const revision = generation; const candidates = target().map(post => ({ ...post }));
-    const purpose = query.value.trim();
+    const purpose = canonicalizeSearchQuery(query.value);
     if (!candidates.length || (mode !== 'relate' && !purpose) || (mode === 'relate' && !anchor)) { status.textContent = '対象の投稿と、探したいことを選んでください。'; return; }
     const context = JSON.stringify([mode, purpose, candidates, mode === 'relate' ? anchor : undefined, includeNotes.checked]);
     if (context !== cacheContext) { cached.clear(); cacheContext = context; }

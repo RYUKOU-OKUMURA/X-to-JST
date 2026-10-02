@@ -15,6 +15,26 @@ function post(id='1',text='議事録の自動化') { return makePost({text,url:`
 function find(root:ParentNode,text:string) { const button = [...root.querySelectorAll('button')].find(node=>node.textContent===text); if(!button) throw new Error(text); return button; }
 afterEach(()=>{ cleanups.splice(0).forEach(fn=>fn()); document.body.replaceChildren(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 describe('research workflow',()=>{
+  it('matches case and whitespace variants in saved posts and notes without matching across fields', async () => {
+    const posts = [post('1', 'GPT-6.1とGoogle Workspaceの使い方'), { ...post('2', 'メモだけに関連語'), note: 'googleworkspace' }, { ...post('3', 'Google'), note: 'Workspace' }];
+    const send = vi.fn(async (_message: unknown) => ({ ok: true, posts })); const ui = createResearchUi(send); cleanups.push(ui.dispose); ui.open(); await flush();
+    const shadow = ui.host.shadowRoot!; const input = shadow.querySelector<HTMLInputElement>('input[type=text]')!;
+    for (const keyword of ['Google Workspace', 'googleworkspace', 'Ｇｏｏｇｌｅ　Ｗｏｒｋｓｐａｃｅ']) {
+      input.value = keyword; find(shadow, '文字で探す').click();
+      expect([...shadow.querySelectorAll('[data-post-id]')].map(post => (post as HTMLElement).dataset.postId)).toEqual(['1', '2']);
+    }
+    input.value = 'gpt-6.1'; find(shadow, '文字で探す').click(); expect(shadow.querySelectorAll('[data-post-id]')).toHaveLength(1);
+    input.value = 'gpt-6.2'; find(shadow, '文字で探す').click(); expect(shadow.querySelectorAll('[data-post-id]')).toHaveLength(0);
+    expect(send.mock.calls.every(call => (call[0] as { type: string }).type === 'RESEARCH_LIST')).toBe(true);
+  });
+  it('passes canonical product names to saved-post judging', async () => {
+    const send = vi.fn(async (message: unknown) => (message as { type: string }).type === 'RESEARCH_JUDGE'
+      ? { ok: true, results: [{ id: '1', score: 1, confidence: 1 }] } : { ok: true, posts: [post()] });
+    const ui = createResearchUi(send); cleanups.push(ui.dispose); ui.open(); await flush(); const shadow = ui.host.shadowRoot!;
+    shadow.querySelector<HTMLInputElement>('input[type=text]')!.value = 'googleworkspace gpt-6.1'; find(shadow, 'Jevで探す').click(); await flush();
+    const request = send.mock.calls.map(call => call[0] as { type: string; payload?: { query: string } }).find(message => message.type === 'RESEARCH_JUDGE');
+    expect(request!.payload!.query).toBe('Google Workspace GPT-6.1');
+  });
   it('collects text without clocks only on explicit start, skips ambiguous quotes and stops on dispose',async()=>{
     article(); const unknown=article('2'); const extra=document.createElement('p'); extra.dataset.testid='tweetText'; extra.textContent='quote'; unknown.append(extra);
     const callback=vi.fn(); const stop=collectResearchPosts(document.body,callback); cleanups.push(stop);

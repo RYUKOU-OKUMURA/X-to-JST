@@ -75,6 +75,36 @@ it('supports explicit local text search without background messages', async () =
   const shadow = root(primary); purpose(shadow, '議事録'); submit(shadow, 'この一覧を文字検索'); await flush();
   expect(send).not.toHaveBeenCalled(); expect(shadow.querySelectorAll('[data-post-id]')).toHaveLength(1); expect(feed.hidden).toBe(true);
 });
+it.each(['/i/bookmarks', '/search?q=tools'])('matches case and whitespace variants in local results on %s', async path => {
+  const { primary, feed } = fixture(path);
+  feed.querySelector('[data-testid="tweetText"]')!.textContent = 'GPT-6.1をGoogle Workspaceで使う';
+  const send = vi.fn(); const inline = installInlineResearch(send); cleanups.push(inline.dispose); await flush();
+  const shadow = root(primary);
+  for (const keyword of ['gpt-6.1', 'GPT-6.1', 'googleworkspace', 'Google Workspace', 'Ｇｏｏｇｌｅ　Ｗｏｒｋｓｐａｃｅ']) {
+    purpose(shadow, keyword); submit(shadow, 'この一覧を文字検索'); await flush();
+    expect(shadow.querySelectorAll('[data-post-id]')).toHaveLength(1);
+    expect(shadow.querySelector('[data-post-id="1"]')).not.toBeNull();
+  }
+  purpose(shadow, 'gpt-6.2'); submit(shadow, 'この一覧を文字検索'); await flush();
+  expect(shadow.querySelectorAll('[data-post-id]')).toHaveLength(0); expect(send).not.toHaveBeenCalled();
+});
+it.each(['gpt-6.1', 'GPT-6.1'])('uses the same native X query and Jev purpose for %s', async keyword => {
+  vi.useFakeTimers(); const { primary, feed } = fixture('/search?q=old');
+  const native = document.createElement('input'); native.dataset.testid = 'SearchBox_Search_Input'; native.value = 'old'; primary.prepend(native);
+  const entered = vi.fn();
+  native.addEventListener('keydown', event => {
+    if (event.key !== 'Enter') return;
+    entered(native.value); const url = new URL('https://x.com/search'); url.searchParams.set('q', native.value);
+    vi.stubGlobal('location', { pathname: url.pathname, href: url.href, search: url.search });
+    feed.remove(); const next = retrievedFeed(primary); next.querySelector('[data-testid="tweetText"]')!.textContent = 'GPT-6.1の活用例';
+  });
+  const send = vi.fn(async (message: unknown) => ({ ok: true, results: (message as { payload: ResearchJudge }).payload.posts.map(post => ({ id: post.id, score: 1, confidence: 1 })) }));
+  const inline = installInlineResearch(send); cleanups.push(inline.dispose);
+  purpose(root(primary), keyword); submit(root(primary), '探す'); await vi.advanceTimersByTimeAsync(1000);
+  expect(entered).toHaveBeenCalledWith('GPT-6.1'); expect(judgeMessages(send)).toHaveLength(1);
+  expect(judgeMessages(send)[0]!.payload!.query).toBe('GPT-6.1');
+  expect(judgeMessages(send)[0]!.payload!.posts.map(post => post.id)).toEqual(['3']);
+});
 it('cancels a changed purpose and discards a late judgment', async () => {
   const { primary } = fixture(); let finish!: (value: unknown) => void;
   const send = vi.fn(async (message: unknown) => (message as { type: string }).type === 'RESEARCH_JUDGE' ? new Promise(resolve => { finish = resolve; }) : { ok: true });
@@ -205,11 +235,11 @@ function retrievedFeed(primary: HTMLElement) {
   const heading = document.createElement('h1'); heading.textContent = 'ブックマークの検索'; feed.append(heading); primary.append(feed);
   addPost(feed, '3', 'Google Workspaceで議事録を自動化する実例'); return feed;
 }
-it('retrieves native bookmark results before judging and preserves keyword and optional purpose', async () => {
+it.each(['Google Workspace', 'googleworkspace', 'gOoGlEwOrKsPaCe'])('retrieves canonical bookmark results for %s before judging', async keyword => {
   vi.useFakeTimers(); const { primary, feed } = fixture(); const native = nativeBookmarkSearch(primary, feed);
   const send = vi.fn(async (message: unknown) => ({ ok: true, results: (message as { payload: ResearchJudge }).payload.posts.map(post => ({ id: post.id, score: 1, confidence: 1 })) }));
   const inline = installInlineResearch(send); cleanups.push(inline.dispose);
-  const shadow = root(primary); purpose(shadow, 'Google Workspace');
+  const shadow = root(primary); purpose(shadow, keyword);
   const intent = shadow.querySelector<HTMLInputElement>('[aria-label="絞り込む目的（任意）"]')!;
   intent.value = '議事録の実例'; intent.dispatchEvent(new Event('input', { bubbles: true }));
   submit(shadow, '探す'); await vi.advanceTimersByTimeAsync(0);

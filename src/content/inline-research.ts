@@ -1,5 +1,6 @@
 import { isRecord } from '../types/messages';
 import { MAX_RESEARCH_BATCH, MAX_RESEARCH_BATCH_CHARS, type ResearchPost } from '../core/research';
+import { canonicalizeSearchQuery, searchTextIncludes } from '../core/search-query';
 import { collectResearchPosts } from './research-collector';
 import { ARTICLE_SELECTOR, extractTweetContext } from './x-dom';
 
@@ -170,14 +171,16 @@ function createSurface(current: NonNullable<ReturnType<typeof source>>, send: Se
   }
   async function find(useJev: boolean) {
     invalidate(); options.hidden = true; const revision = generation;
-    const query = purpose.value.trim() ? `${input.value.trim()}：${purpose.value.trim()}` : input.value.trim();
+    const keyword = canonicalizeSearchQuery(input.value);
+    const intent = canonicalizeSearchQuery(purpose.value);
+    const query = intent ? `${keyword}：${intent}` : keyword;
     if (!query) { status.textContent = '検索キーワードを入力してください。'; input.focus(); return; }
     if (query.length > 2000) { status.textContent = '検索キーワードと目的を合わせて2000文字以内にしてください。'; return; }
     if (!stillCurrent()) return;
     startCollection(); const candidates = posts.map(post => ({ ...post })); judgedTotal = candidates.length; updateCount();
     if (!candidates.length) { status.textContent = '読み込まれた本文がありません。Xの検索やスクロールで投稿を表示してください。'; return; }
     if (!useJev) {
-      const matches = candidates.filter(post => post.text.toLocaleLowerCase().includes(input.value.trim().toLocaleLowerCase())).map(post => ({ post, score: 1 }));
+      const matches = candidates.filter(post => searchTextIncludes(post.text, input.value)).map(post => ({ post, score: 1 }));
       showResults(matches); status.textContent = '文字列検索です。Jevへの送信はありません。'; return;
     }
     active = true; search.disabled = true; cancel.hidden = false;
@@ -233,6 +236,7 @@ export function installInlineResearch(send: Send = message => chrome.runtime.sen
     return surface;
   }
   async function search(keyword: string, purpose: string) {
+    keyword = canonicalizeSearchQuery(keyword);
     if (keyword.length + (purpose ? purpose.length + 1 : 0) > 2000) { surface?.prepare(keyword, purpose, '検索キーワードと目的を合わせて2000文字以内にしてください。'); return; }
     const initial = source(); if (!initial) return;
     surface?.reset(); const controller = new AbortController(); retrieval = controller;

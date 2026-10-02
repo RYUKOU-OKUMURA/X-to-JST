@@ -10,6 +10,13 @@ function store() {
   return { data, get: vi.fn(async (key: unknown) => key === null ? { ...data } : { [key as string]: data[key as string] }), set: vi.fn(async (records: Record<string, unknown>) => { Object.assign(data, records); }), remove: vi.fn(async (keys: string | string[]) => { for (const key of Array.isArray(keys) ? keys : [keys]) delete data[key]; }) };
 }
 beforeEach(() => vi.stubGlobal('chrome', { runtime: { id: 'extension' } }));
+it('normalizes search aliases at the message boundary while keeping original post text', () => {
+  const original = { ...post(), text: 'ＧＰＴ－６.１とgoogleworkspaceについて' };
+  const payload = decodeJudge({ mode: 'search', query: 'googleworkspace', posts: [original], includeNotes: false, requestId: 'aliases' })!;
+  expect(payload.query).toBe('Google Workspace'); expect(payload.posts[0]!.text).toBe(original.text);
+  expect(makeResearchRequest(payload).state.query).toBe('Google Workspace');
+  expect(decodeJudge({ ...payload, query: 'x'.repeat(1984) + ' googleworkspace' })).toBeUndefined();
+});
 it('normalizes post links and rejects unsafe records and timestamps', () => {
   expect(validatePost({ ...post(), url: post().url + '?s=20' })?.url).toBe(post().url);
   expect(validatePost({ ...post(), url: 'https://x.com.evil/user/status/123' })).toBeUndefined();

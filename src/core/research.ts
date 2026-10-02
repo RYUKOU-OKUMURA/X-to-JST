@@ -1,4 +1,5 @@
 import { isRecord, type TweetContext } from '../types/messages';
+import { canonicalizeSearchQuery } from './search-query';
 export const RESEARCH_PREFIX = 'research:post:';
 export const MAX_RESEARCH_POSTS = 200;
 export const MAX_RESEARCH_BYTES = 2 * 1024 * 1024;
@@ -47,9 +48,11 @@ export function decodeRecords(value: unknown): ResearchPost[] | undefined {
 export function decodeJudge(value: unknown): ResearchJudge | undefined {
   if (!isRecord(value) || !['search', 'relate'].includes(value.mode as string) || typeof value.query !== 'string' || value.query.length > 2_000 ||
     (value.mode === 'search' && !value.query.trim()) || typeof value.includeNotes !== 'boolean' || typeof value.requestId !== 'string' || !/^[a-zA-Z0-9_-]{1,80}$/.test(value.requestId)) return;
+  const query = canonicalizeSearchQuery(value.query);
+  if (query.length > 2_000) return;
   const posts = decodeRecords(value.posts);
   const anchor = value.anchor === undefined ? undefined : validatePost(value.anchor);
   if (!posts?.length || posts.length > MAX_RESEARCH_BATCH || (value.mode === 'relate' && !anchor) || (value.anchor !== undefined && !anchor)) return;
-  if (posts.reduce((sum, post) => sum + post.text.length + (value.includeNotes ? post.note.length : 0), value.query.length + (anchor?.text.length ?? 0) + (value.includeNotes ? anchor?.note.length ?? 0 : 0)) > MAX_RESEARCH_BATCH_CHARS) return;
-  return { mode: value.mode as ResearchJudge['mode'], query: value.query, posts, anchor, includeNotes: value.includeNotes, requestId: value.requestId };
+  if (posts.reduce((sum, post) => sum + post.text.length + (value.includeNotes ? post.note.length : 0), query.length + (anchor?.text.length ?? 0) + (value.includeNotes ? anchor?.note.length ?? 0 : 0)) > MAX_RESEARCH_BATCH_CHARS) return;
+  return { mode: value.mode as ResearchJudge['mode'], query, posts, anchor, includeNotes: value.includeNotes, requestId: value.requestId };
 }
