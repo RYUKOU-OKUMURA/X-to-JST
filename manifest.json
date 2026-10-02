@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "X to JST",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Xの海外日時表現を投稿時刻と夏時間を考慮して日本時間に変換します。",
   "minimum_chrome_version": "120",
   "permissions": ["storage"],

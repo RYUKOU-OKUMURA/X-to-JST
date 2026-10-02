@@ -36,6 +36,12 @@ describe('research workflow',()=>{
     find(root,'拾う').click();find(root,'収集を開始').click();find(root,'これとつなげる').click();await flush();article('2');await flush();find(root,'拾う').click();
     expect(root.querySelectorAll('article')).toHaveLength(1);expect(find(root,'収集を停止').disabled).toBe(true);
   });
+  it('disables the stop control when a source change ends collection',async()=>{
+    vi.stubGlobal('location',{pathname:'/i/history',href:'https://x.com/i/history'});const tab=document.createElement('button');tab.setAttribute('role','tab');tab.setAttribute('aria-selected','true');tab.textContent='ブックマーク';document.body.append(tab);article();
+    const ui=createResearchUi(async()=>({ok:true,posts:[]}));cleanups.push(ui.dispose);ui.open();await flush();const root=ui.host.shadowRoot!;find(root,'拾う').click();find(root,'収集を開始').click();
+    expect(find(root,'収集を停止').disabled).toBe(false);tab.textContent='いいね';await flush();
+    expect(root.textContent).toContain('ページが変わった');expect(find(root,'収集を停止').disabled).toBe(true);expect(find(root,'収集を開始').disabled).toBe(false);
+  });
   it('reuses all batches for the same purpose and invalidates them when the purpose changes',async()=>{
     const posts=Array.from({length:21},(_,i)=>post(String(i+1)));const send=vi.fn(async(message:unknown)=>{const value=message as {type:string;payload?:{posts:ResearchPost[]}};return value.type==='RESEARCH_JUDGE'?{ok:true,results:value.payload!.posts.map(p=>({id:p.id,score:1,confidence:1})),usage:{input_tokens:20,output_tokens:5}}:{ok:true,posts};});
     const ui=createResearchUi(send);cleanups.push(ui.dispose);ui.open();await flush();const root=ui.host.shadowRoot!;const input=root.querySelector<HTMLInputElement>('input[type=text]')!;input.value='自動化';find(root,'Jevで探す').click();await flush();
@@ -88,4 +94,23 @@ describe('research workflow',()=>{
     const ui=createResearchUi(send);cleanups.push(ui.dispose);ui.open();await flush();const root=ui.host.shadowRoot!;root.querySelector<HTMLInputElement>('input[type=text]')!.value='自動化';find(root,'Jevで探す').click();await flush();expect(root.querySelector('#status')!.textContent).toContain('API使用量は未取得');
     find(root,'Jevで探す').click();await flush();expect(root.querySelector('#status')!.textContent).toContain('入力0 / 出力0');expect(send.mock.calls.filter(c=>(c[0] as {type:string}).type==='RESEARCH_JUDGE')).toHaveLength(1);
   });
+});
+it.each([
+  ['2026-10-01T00:00:00Z', '2026-09-24T00:00:00Z', 1, '比較元より前の関連情報（候補）'],
+  ['2026-09-24T00:00:00Z', '2026-10-01T00:00:00Z', 1, '比較元より後の関連情報（候補）'],
+  ['2026-10-01T00:00:00Z', '2026-10-01T00:00:00Z', 1, '関連情報（前後関係は不明）'],
+  [undefined, '2026-10-01T00:00:00Z', 1, '関連情報（前後関係は不明）'],
+  ['2026-10-01T00:00:00Z', undefined, 1, '関連情報（前後関係は不明）'],
+  ['2026-10-01T00:00:00Z', '2026-09-24T00:00:00Z', .5, '関連候補（関係は未確定）'],
+])('labels followup using publication order without guessing missing dates (%s / %s, confidence %s)', async (anchorDate, candidateDate, confidence, label) => {
+  const posts = [{ ...post('1', '比較元の更新'), postedAtUtc: anchorDate }, { ...post('2', '同じ対象の更新'), postedAtUtc: candidateDate }];
+  const send = vi.fn(async (message: unknown) => (message as { type: string }).type === 'RESEARCH_JUDGE'
+    ? { ok: true, results: [{ id: '2', relation: 'followup', confidence }] } : { ok: true, posts });
+  const ui = createResearchUi(send); cleanups.push(ui.dispose); ui.open(); await flush();
+  const root = ui.host.shadowRoot!;
+  find(root, 'これとつなげる').click(); await flush(); find(root, 'Jevでつなげる').click(); await flush();
+  const card = root.querySelector('[data-post-id="2"]')!;
+  expect(card.textContent).toContain(label);
+  expect(card.textContent).not.toContain('続報の候補');
+  expect((card as HTMLElement).dataset.relationship).toBe('followup');
 });

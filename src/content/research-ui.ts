@@ -4,7 +4,7 @@ import { collectResearchPosts } from './research-collector';
 
 type Send = (message: unknown) => Promise<unknown>;
 type Judgment = { id: string; score?: number; relation?: string; confidence: number };
-const RELATIONS: Record<string, string> = { followup: '続報の候補', change: '変更の候補', example: '具体例の候補', same: '同じ話の候補', unrelated: '無関係', unknown: '関係は不明' };
+const RELATIONS: Record<string, string> = { followup: '関連情報（前後関係は不明）', change: '変更の候補', example: '具体例の候補', same: '同じ話の候補', unrelated: '無関係', unknown: '関係は不明' };
 const CSS = `:host{all:initial;position:fixed;right:16px;top:70px;bottom:20px;width:min(420px,calc(100vw - 32px));z-index:2147483646;color-scheme:light dark}*{box-sizing:border-box}section{height:100%;display:flex;flex-direction:column;font:14px/1.5 system-ui,sans-serif;background:Canvas;color:CanvasText;border:1px solid #81919e;border-radius:16px;box-shadow:0 8px 32px #0004;overflow:hidden}header,.controls,footer{padding:12px;border-bottom:1px solid #81919e}header,.row,nav{display:flex;gap:8px;align-items:center;flex-wrap:wrap}h2{font-size:17px;margin:0;flex:1}button,input,textarea{font:inherit}button{cursor:pointer;border:1px solid #81919e;border-radius:8px;padding:5px 10px;background:Canvas;color:CanvasText}button:disabled{opacity:.5;cursor:default}button[aria-pressed=true]{background:#1d6f9b;color:white}input[type=text],textarea{width:100%;background:Canvas;color:CanvasText;border:1px solid #81919e;border-radius:6px;padding:7px}input[type=checkbox]{width:18px;height:18px}textarea{min-height:50px;resize:vertical}button:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible{outline:3px solid #1d9bf0;outline-offset:2px}p{margin:6px 0}.small{font-size:12px;opacity:.85}#results{flex:1;overflow:auto;padding:12px}article{padding:10px 0;border-bottom:1px solid #81919e}article p{white-space:pre-wrap;overflow-wrap:anywhere}a{color:LinkText}footer{border-bottom:0;border-top:1px solid #81919e}details{margin-top:6px}nav{margin-bottom:8px}#anchor{max-height:110px;overflow:auto;border-left:3px solid #1d9bf0;padding-left:8px}#status{min-height:1.5em}@media(max-width:600px){:host{right:8px;top:48px;bottom:8px;width:calc(100vw - 16px)}}`;
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, text?: string): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag); if (text !== undefined) node.textContent = text; return node;
@@ -44,7 +44,7 @@ export function createResearchUi(send: Send = message => chrome.runtime.sendMess
     stopCollect = collectResearchPosts(document.body, (posts, skipped, reason) => {
       collected = posts; collectionReason = reason ?? '';
       if (mode === 'collect') sourceStatus.textContent = `この画面から ${posts.length}件収集・取得不可 ${skipped}要素。${reason ?? 'スクロールして投稿を読み込めます。'}`;
-      if (reason) { stopCollect = undefined; collect.textContent = '収集を開始'; }
+      if (reason) { stopCollect = undefined; collect.textContent = '収集を開始'; stop.disabled = true; }
       renderCards();
     });
     if (!collectionReason) collect.textContent = '収集し直す'; else stopCollect = undefined;
@@ -152,7 +152,10 @@ export function createResearchUi(send: Send = message => chrome.runtime.sendMess
       if (judgment) {
         card.dataset.relevance = String(judgment.score ?? '');
         card.dataset.relationship = judgment.relation ?? '';
-        const label = mode === 'relate' ? judgment.confidence < .6 ? '関連候補（関係は未確定）' : RELATIONS[judgment.relation ?? 'unknown'] ?? '関連候補' : (judgment.score ?? 0) >= .5 ? '目的に近い候補' : '目的との関連が弱い候補';
+        const candidateTime = post.postedAtUtc ? Date.parse(post.postedAtUtc) : NaN;
+        const anchorTime = anchor?.postedAtUtc ? Date.parse(anchor.postedAtUtc) : NaN;
+        const followupLabel = candidateTime > anchorTime ? '比較元より後の関連情報（候補）' : candidateTime < anchorTime ? '比較元より前の関連情報（候補）' : '関連情報（前後関係は不明）';
+        const label = mode === 'relate' ? judgment.confidence < .6 ? '関連候補（関係は未確定）' : judgment.relation === 'followup' ? followupLabel : RELATIONS[judgment.relation ?? 'unknown'] ?? '関連候補' : (judgment.score ?? 0) >= .5 ? '目的に近い候補' : '目的との関連が弱い候補';
         card.append(el('p', label));
       } else if (active) card.append(el('p', '未判定'));
       const actions = el('div'); actions.className = 'row';
