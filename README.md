@@ -53,7 +53,7 @@ Tomorrow at 10am PST
 
 ## Status
 
-v0.3.1 — JST conversion, on-demand research, and inline purpose search are implemented. Research acceptance remains incomplete; confirmed behavior and remaining evaluation are recorded in [docs/research-validation.md](docs/research-validation.md).
+v0.3.2 — Search spelling normalization, JST conversion, on-demand research, and inline purpose search are implemented. Research acceptance remains incomplete; confirmed behavior and remaining evaluation are recorded in [docs/research-validation.md](docs/research-validation.md).
 
 ## Local development
 
@@ -66,6 +66,8 @@ npm run check
 
 Build artifacts are written to `dist/`. In Chrome, open `chrome://extensions`, enable Developer mode, select **Load unpacked**, and choose `dist/`. Open X and click **🇯🇵 日本時間** beside a post.
 
+MacBookではビルド済みZIPを解凍し、Chromeの `chrome://extensions` で「デベロッパーモード」をオンにして「パッケージ化されていない拡張機能を読み込む」から `dist/` を選びます。Node.jsは不要です。読み込んだフォルダは移動・削除せずに保管してください。既存の `dist/` を更新した場合は、拡張機能を再読み込みしてXのタブも更新します。
+
 For development, run `npm run watch`. After a rebuild, reload the extension from `chrome://extensions` and reload the X tab. Options, manifest, and style changes are also watched. No API key is needed for unambiguous PT/ET/UTC/GMT conversions.
 
 Open the extension's **Extension options** to save or delete your TypeSafe key. Ambiguous time conversions and explicit research searches send their target text to TypeSafe; the key is handled in the background and is never returned to the X page. Time-conversion history is not persisted. Local storage is not an encrypted secret vault.
@@ -77,6 +79,8 @@ Open the extension's **Extension options** to save or delete your TypeSafe key. 
 ブックマーク一覧とX検索結果の中央列に「目的で探す」を表示します。「Google Workspace」のような検索キーワードを入力して「探す」を押すと、X標準の検索を実行し、新しい検索結果を読み込んでからJevが候補を絞ります。「目的を指定する（任意）」に「GASと連携した実例」などを追加できます。Xの標準検索欄が利用できない場合や読み込みを確認できない場合は、旧一覧をJevに送りません。「この一覧を文字検索」は表示済み投稿の文字検索で、APIキー不要です。表示済みの一覧だけをJevで判定する操作は「検索について」にあります。
 
 Jevの判定対象はX標準検索の結果から読み込んだ表示本文です。全ブックマーク・X全体の網羅的な意味検索ではありません。「さらに読み込む」でXの一覧を手動スクロールし、同じキーワードで再判定できます。最大200件・2MiBで、投稿本文は検索中のメモリにだけ保持します。通常表示に戻る・中断・目的変更・画面移動で破棄し、この検索から永続保存はしません。
+
+文字検索は大文字・小文字、空白、全角・半角の違いを吸収します。`gpt-6.1` と `GPT-6.1`、`Google Workspace` と `googleworkspace` を同じ表記として扱い、保存投稿の本文とメモにも適用します。X標準検索へ渡す通常のキーワードも、既知のGoogle Workspace表記とGPTモデル表記を標準化します。引用句や検索演算子を含む指定はそのまま尊重し、投稿本文や保存データは書き換えません。異なるモデルのバージョンは区別します。
 
 「探す」は目的・表示本文・投稿日時をTypeSafeへ送信します。画像・動画・リンク先本文は対象外です。著者情報はXの画面表示に使い、Jevへ送りません。候補の関連性は内容の正確さを保証しません。元の投稿を開いて確認できます。拡張アイコンで検索欄を表示・非表示にできます。
 
