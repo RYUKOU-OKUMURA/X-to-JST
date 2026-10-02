@@ -79,6 +79,31 @@ describe('X DOM and result UI', () => {
     });
     const result = await resolveWithJev({ text: 'Tomorrow at 10am PST', postedAtUtc: POST }, send);
     expect(result.status).toBe(state === 'high' ? 'resolved' : 'ambiguous');
+    expect(result).toMatchObject({ jev: { confidence: state === 'low' ? .7 : .91 } });
+  });
+  it('does not claim a validated Jev response for a malformed success reply', async () => {
+    const result = await resolveWithJev({ text: 'Tomorrow at 10am PST', postedAtUtc: POST }, vi.fn(async () => ({ ok: true, result: { choice: 'unresolved' } })));
+    expect(result).toMatchObject({ status: 'ambiguous', warning: expect.stringContaining('取得できません') });
+    expect(result).not.toHaveProperty('jev');
+  });
+  it('keeps candidates compact and puts explanations and the actual Jev answer in closed details', async () => {
+    const node = article('Tomorrow at 10am PST');
+    const send = vi.fn(async (message: unknown) => {
+      const ids = (message as { payload: { candidates: { id: string }[] } }).payload.candidates.map(c => c.id);
+      return { ok: true, result: { choice: 'unresolved', confidence: .91, probabilities: { [ids[0]!]: .1, [ids[1]!]: .1, unresolved: .8 } } };
+    });
+    const root = attachUi(node, send).shadowRoot!;
+    root.querySelector<HTMLButtonElement>('button')!.click(); await flush();
+    expect(root.querySelector('h3')).toBeNull();
+    expect([...root.querySelectorAll('.candidate')].map(row => row.textContent)).toEqual([
+      '2026年10月3日（土）02:00 JST現地時間コピー', '2026年10月3日（土）03:00 JSTPST固定コピー',
+    ]);
+    const details = root.querySelector('details')!;
+    expect(details.open).toBe(false);
+    expect(details.textContent).toContain('TypeSafe / Jev：応答確認済み');
+    expect(details.textContent).toContain('判定：未確定・確信度 91.0%');
+    expect(details.textContent).toContain('この日の現地時間は');
+    expect(root.textContent).not.toContain('APIキー設定');
   });
   it('handles unset key with an options link and preserves copyable candidates', async () => {
     const node = article('Tomorrow at 10am PST'); const send = vi.fn(async () => ({ ok: false, error: { code: 'KEY_NOT_SET' } }));
