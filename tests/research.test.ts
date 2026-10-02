@@ -55,7 +55,7 @@ it('rejects untrusted senders and forwards only explicit notes with one question
   expect(decodeResearchAnswers({ answers: { post_0: { type: 'score', score: 3, confidence: 1, probabilities: { 0: 0, 1: 0, 2: 0, 3: 1 } } } }, payload)).toMatchObject([{ id: '123', score: 1 }]);
   expect(decodeResearchAnswers({ answers: { post_0: { type: 'score', score: 0, confidence: 1, probabilities: { 0: 0, 1: 0, 2: 0, 3: 1 } } } }, payload)).toBeUndefined();
 });
-it('cancels active judgment and suppresses late responses, while another tab cannot cancel', async () => {
+it('cancels active judgment and suppresses late responses', async () => {
   const storage = store(); let finish!: (response: Response) => void; let started!: () => void;
   const entered = new Promise<void>(resolve => { started = resolve; });
   const fetcher: typeof fetch = vi.fn(async () => { started(); return new Promise<Response>(resolve => { finish = resolve; }); });

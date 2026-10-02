@@ -68,7 +68,21 @@ Build artifacts are written to `dist/`. In Chrome, open `chrome://extensions`, e
 
 For development, run `npm run watch`. After a rebuild, reload the extension from `chrome://extensions` and reload the X tab. Options, manifest, and style changes are also watched. No API key is needed for unambiguous PT/ET/UTC/GMT conversions.
 
-Open the extension's **Extension options** to save or delete your TypeSafe key. Only a clicked, ambiguous post is sent to TypeSafe; the key is handled in the background and is never returned to the X page. Conversion history and post bodies are not persisted. Local storage is not an encrypted secret vault.
+Open the extension's **Extension options** to save or delete your TypeSafe key. Ambiguous time conversions and explicit research searches send their target text to TypeSafe; the key is handled in the background and is never returned to the X page. Time-conversion history is not persisted. Local storage is not an encrypted secret vault.
+
+## X 調べもの
+
+Xで拡張アイコンを押すと、必要なときだけパネルを開けます。
+
+- **拾う**：収集を開始し、手動スクロールで読み込んだ投稿を選んで保存。時刻表現のない投稿も対象です。
+- **探す**：保存投稿を目的に合わせてJevで並べ替え。「文字で探す」はAPIキーなしで使えます。
+- **つなげる**：「これとつなげる」で1投稿を選び、保存投稿から続報・具体例などの候補を比較します。
+
+保存はこのブラウザ内の最大200件・本文とメモ合計2MiBです。任意メモ、JSON書き出し・復元・削除に対応。復元は既存の本文とメモを保持し、未登録の投稿だけ追加します。拡張削除で保存データも失われます。
+
+Jev検索では目的・対象の表示本文・投稿日時を送ります。本人メモはチェックを入れた場合のみ送信します。画像・動画・リンク先全文・まだ読み込んでいない過去投稿は検索しません。判定は候補で、原文と日付を確認できます。普段の閲覧中に新機能が自動収集・保存・送信することはありません。
+
+設計と評価条件は [調べものモードの計画](docs/research-mode-plan.md)、実測範囲は [検証記録](docs/research-validation.md) を参照してください。
 
 ```sh
 npm run test:browser  # compiled UI with mock Chrome runtime and X fixtures
