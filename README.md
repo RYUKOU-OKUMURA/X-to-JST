@@ -53,7 +53,7 @@ Tomorrow at 10am PST
 
 ## Status
 
-v0.3.0 — JST conversion, on-demand research, and inline purpose search are implemented. Research acceptance remains incomplete; confirmed behavior and remaining evaluation are recorded in [docs/research-validation.md](docs/research-validation.md).
+v0.3.1 — JST conversion, on-demand research, and inline purpose search are implemented. Research acceptance remains incomplete; confirmed behavior and remaining evaluation are recorded in [docs/research-validation.md](docs/research-validation.md).
 
 ## Local development
 
@@ -74,9 +74,9 @@ Open the extension's **Extension options** to save or delete your TypeSafe key. 
 
 ### ブックマーク・X検索結果で目的検索
 
-ブックマーク一覧とX検索結果の中央列に「目的で探す」を表示します。X標準の「ブックマークを検索」または通常検索でキーワードを検索し、表示された投稿から「Workspace StudioとGASを連携した実例」のように目的を入力して「探す」を押してください。Jevが目的との関連を判定し、候補を中央列に表示します。「文字で探す」はAPIキー不要です。
+ブックマーク一覧とX検索結果の中央列に「目的で探す」を表示します。「Google Workspace」のような検索キーワードを入力して「探す」を押すと、X標準の検索を実行し、新しい検索結果を読み込んでからJevが候補を絞ります。「目的を指定する（任意）」に「GASと連携した実例」などを追加できます。Xの標準検索欄が利用できない場合や読み込みを確認できない場合は、旧一覧をJevに送りません。「この一覧を文字検索」は表示済み投稿の文字検索で、APIキー不要です。表示済みの一覧だけをJevで判定する操作は「検索について」にあります。
 
-対象はクリック時点までに読み込んだ表示本文です。全ブックマーク・X全体の網羅検索ではありません。「さらに読み込む」でXの一覧を手動スクロールし、再判定できます。最大200件・2MiBで、投稿本文は検索中のメモリにだけ保持します。通常表示に戻る・中断・目的変更・画面移動で破棄し、この検索から永続保存はしません。
+Jevの判定対象はX標準検索の結果から読み込んだ表示本文です。全ブックマーク・X全体の網羅的な意味検索ではありません。「さらに読み込む」でXの一覧を手動スクロールし、同じキーワードで再判定できます。最大200件・2MiBで、投稿本文は検索中のメモリにだけ保持します。通常表示に戻る・中断・目的変更・画面移動で破棄し、この検索から永続保存はしません。
 
 「探す」は目的・表示本文・投稿日時をTypeSafeへ送信します。画像・動画・リンク先本文は対象外です。著者情報はXの画面表示に使い、Jevへ送りません。候補の関連性は内容の正確さを保証しません。元の投稿を開いて確認できます。拡張アイコンで検索欄を表示・非表示にできます。
 

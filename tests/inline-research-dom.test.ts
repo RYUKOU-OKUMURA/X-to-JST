@@ -32,10 +32,10 @@ function purpose(shadow: ShadowRoot, value: string) {
   const input = shadow.querySelector<HTMLInputElement>('[aria-label="探したいこと"]')!;
   input.value = value; input.dispatchEvent(new Event('input', { bubbles: true }));
 }
-function submit(shadow: ShadowRoot, text = '探す') { button(shadow, text).click(); }
+function submit(shadow: ShadowRoot, text = 'この一覧をJevで絞る') { button(shadow, text).click(); }
 function judgeMessages(send: ReturnType<typeof vi.fn>) { return send.mock.calls.map(call => call[0] as { type: string; payload?: ResearchJudge }).filter(value => value.type === 'RESEARCH_JUDGE'); }
 beforeEach(() => { vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined); });
-afterEach(() => { cleanups.splice(0).forEach(dispose => dispose()); document.body.replaceChildren(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+afterEach(() => { cleanups.splice(0).forEach(dispose => dispose()); document.body.replaceChildren(); vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.useRealTimers(); });
 it('mounts within the central column and makes no request on mount or toggle', async () => {
   const { primary } = fixture(); const send = vi.fn(async () => ({ ok: true }));
   const inline = installInlineResearch(send); cleanups.push(inline.dispose); await flush();
@@ -72,7 +72,7 @@ it('leaves unrelated native posts hidden when no semantic candidate matches', as
 it('supports explicit local text search without background messages', async () => {
   const { primary, feed } = fixture(); const send = vi.fn();
   const inline = installInlineResearch(send); cleanups.push(inline.dispose); await flush();
-  const shadow = root(primary); purpose(shadow, '議事録'); submit(shadow, '文字で探す'); await flush();
+  const shadow = root(primary); purpose(shadow, '議事録'); submit(shadow, 'この一覧を文字検索'); await flush();
   expect(send).not.toHaveBeenCalled(); expect(shadow.querySelectorAll('[data-post-id]')).toHaveLength(1); expect(feed.hidden).toBe(true);
 });
 it('cancels a changed purpose and discards a late judgment', async () => {
@@ -88,17 +88,17 @@ it('cancels a changed purpose and discards a late judgment', async () => {
 it('collects additional manually loaded posts only after showing the native feed again', async () => {
   const { primary, feed } = fixture(); const send = vi.fn();
   const inline = installInlineResearch(send); cleanups.push(inline.dispose); await flush();
-  const shadow = root(primary); purpose(shadow, '議事録'); submit(shadow, '文字で探す'); await flush();
+  const shadow = root(primary); purpose(shadow, '議事録'); submit(shadow, 'この一覧を文字検索'); await flush();
   submit(shadow, 'さらに読み込む'); expect(feed.hidden).toBe(false);
   addPost(feed, '3', '議事録を別の方法で自動化'); await flush();
-  submit(shadow, '文字で探す'); await flush();
+  submit(shadow, 'この一覧を文字検索'); await flush();
   expect(shadow.querySelectorAll('[data-post-id]')).toHaveLength(2); expect(send).not.toHaveBeenCalled();
 });
 it('invalidates results when the bookmark history tab changes at the same URL', async () => {
   const { primary, feed } = fixture('/i/history');
   const tab = document.createElement('button'); tab.setAttribute('role', 'tab'); tab.setAttribute('aria-selected', 'true'); tab.textContent = 'ブックマーク'; primary.prepend(tab);
   const inline = installInlineResearch(vi.fn()); cleanups.push(inline.dispose); await flush();
-  const shadow = root(primary); purpose(shadow, '議事録'); submit(shadow, '文字で探す'); await flush();
+  const shadow = root(primary); purpose(shadow, '議事録'); submit(shadow, 'この一覧を文字検索'); await flush();
   expect(feed.hidden).toBe(true);
   tab.textContent = 'いいね'; await new Promise(resolve => setTimeout(resolve, 350));
   expect(feed.hidden).toBe(false); expect(shadow.querySelectorAll('[data-post-id]')).toHaveLength(0);
@@ -131,7 +131,7 @@ it('restores the native feed on explicit cancellation and discards the late batc
   const { primary, feed } = fixture(); let finish!: (value: unknown) => void;
   const send = vi.fn(async (message: unknown) => (message as { type: string }).type === 'RESEARCH_JUDGE' ? new Promise(resolve => { finish = resolve; }) : { ok: true });
   const inline = installInlineResearch(send); cleanups.push(inline.dispose); await flush();
-  const shadow = root(primary); purpose(shadow, '議事録'); submit(shadow, '文字で探す'); await flush();
+  const shadow = root(primary); purpose(shadow, '議事録'); submit(shadow, 'この一覧を文字検索'); await flush();
   expect(feed.hidden).toBe(true);
   submit(shadow); await flush(); const first = judgeMessages(send)[0]!;
   submit(shadow, '中断');
@@ -153,18 +153,24 @@ it('keeps the judged snapshot count fixed when more native posts arrive after re
   expect(shadow.querySelectorAll('[data-post-id]')).toHaveLength(1);
   expect(judgeMessages(send)).toHaveLength(1);
 });
-it.each([['', ''], ['flex', ''], ['flex', 'important']])('hides X flex feeds and restores their original display value/priority (%s/%s)', async (display, priority) => {
+it.each([['', ''], ['flex', ''], ['flex', 'important']])('moves X flex feeds offscreen and restores their complete inline style (%s/%s)', async (display, priority) => {
   const { primary, feed } = fixture();
   const style = document.createElement('style'); style.textContent = 'section[role="region"] { display: flex; }'; document.body.append(style);
+  feed.style.cssText = 'position: relative; top: 2px; visibility: visible; width: 400px; margin-top: 3px !important;';
   feed.style.setProperty('display', display, priority);
+  const originalStyle = feed.style.cssText;
   const send = vi.fn(); const inline = installInlineResearch(send); cleanups.push(inline.dispose); await flush();
   expect(getComputedStyle(feed).display).toBe('flex');
-  const shadow = root(primary); purpose(shadow, '議事録'); submit(shadow, '文字で探す'); await flush();
-  expect(getComputedStyle(feed).display).toBe('none');
-  expect(feed.style.getPropertyValue('display')).toBe('none');
+  const shadow = root(primary); purpose(shadow, '議事録'); submit(shadow, 'この一覧を文字検索'); await flush();
+  expect(getComputedStyle(feed).display).toBe('flex');
+  expect(getComputedStyle(feed).visibility).toBe('hidden');
+  expect(getComputedStyle(feed).position).toBe('fixed');
+  expect(feed.style.top).toBe('100vh');
+  expect(feed.style.getPropertyValue('display')).toBe('flex');
   expect(feed.style.getPropertyPriority('display')).toBe('important');
   submit(shadow, '通常表示に戻る');
   expect(getComputedStyle(feed).display).toBe('flex');
+  expect(feed.style.cssText).toBe(originalStyle);
   expect(feed.style.getPropertyValue('display')).toBe(display);
   expect(feed.style.getPropertyPriority('display')).toBe(priority);
   expect(feed.hidden).toBe(false); expect(send).not.toHaveBeenCalled();
@@ -179,8 +185,107 @@ it('exposes unset-key status and falls back to local search without another requ
   expect(button(shadow, 'APIキー設定').hidden).toBe(false);
   expect(shadow.querySelectorAll('[data-post-id]')).toHaveLength(0);
   expect(judgeMessages(send)).toHaveLength(1);
-  submit(shadow, '文字で探す'); await flush();
+  submit(shadow, 'この一覧を文字検索'); await flush();
   expect(shadow.querySelectorAll('[data-post-id]')).toHaveLength(1);
   expect(shadow.querySelector('[data-post-id="1"]')).not.toBeNull();
   expect(send).toHaveBeenCalledTimes(1);
+});
+function nativeBookmarkSearch(primary: HTMLElement, feed: HTMLElement) {
+  const open = document.createElement('button'); open.setAttribute('aria-label', 'ブックマークを検索'); primary.prepend(open);
+  let native!: HTMLInputElement;
+  const entered = vi.fn();
+  open.addEventListener('click', () => {
+    native = document.createElement('input'); native.placeholder = 'ブックマークを検索'; primary.prepend(native);
+    native.addEventListener('keydown', event => { if (event.key === 'Enter') { entered(native.value); feed.remove(); } });
+  });
+  return { entered, input: () => native };
+}
+function retrievedFeed(primary: HTMLElement) {
+  const feed = document.createElement('section'); feed.setAttribute('role', 'region');
+  const heading = document.createElement('h1'); heading.textContent = 'ブックマークの検索'; feed.append(heading); primary.append(feed);
+  addPost(feed, '3', 'Google Workspaceで議事録を自動化する実例'); return feed;
+}
+it('retrieves native bookmark results before judging and preserves keyword and optional purpose', async () => {
+  vi.useFakeTimers(); const { primary, feed } = fixture(); const native = nativeBookmarkSearch(primary, feed);
+  const send = vi.fn(async (message: unknown) => ({ ok: true, results: (message as { payload: ResearchJudge }).payload.posts.map(post => ({ id: post.id, score: 1, confidence: 1 })) }));
+  const inline = installInlineResearch(send); cleanups.push(inline.dispose);
+  const shadow = root(primary); purpose(shadow, 'Google Workspace');
+  const intent = shadow.querySelector<HTMLInputElement>('[aria-label="絞り込む目的（任意）"]')!;
+  intent.value = '議事録の実例'; intent.dispatchEvent(new Event('input', { bubbles: true }));
+  submit(shadow, '探す'); await vi.advanceTimersByTimeAsync(0);
+  expect(native.entered).toHaveBeenCalledWith('Google Workspace'); expect(feed.isConnected).toBe(false); expect(send).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(150); expect(send).not.toHaveBeenCalled();
+  retrievedFeed(primary); await vi.advanceTimersByTimeAsync(1000);
+  const calls = judgeMessages(send); expect(calls).toHaveLength(1);
+  expect(calls[0]!.payload!.posts.map(post => post.id)).toEqual(['3']);
+  expect(calls[0]!.payload!.query).toBe('Google Workspace：議事録の実例');
+  const next = root(primary);
+  expect(next.querySelector<HTMLInputElement>('[aria-label="探したいこと"]')!.value).toBe('Google Workspace');
+  expect(next.querySelector<HTMLInputElement>('[aria-label="絞り込む目的（任意）"]')!.value).toBe('議事録の実例');
+  expect(next.querySelectorAll('[data-post-id]')).toHaveLength(1);
+});
+it('does not send old visible posts when native bookmark search is unavailable', async () => {
+  const { primary, feed } = fixture(); const send = vi.fn();
+  const inline = installInlineResearch(send); cleanups.push(inline.dispose); await flush();
+  const shadow = root(primary); purpose(shadow, 'Google Workspace'); submit(shadow, '探す'); await flush();
+  expect(send).not.toHaveBeenCalled(); expect(feed.hidden).toBe(false);
+  expect(root(primary).querySelector('#status')!.textContent).toContain('検索がこの画面で利用できません');
+});
+it('times out native retrieval without judging the old feed', async () => {
+  vi.useFakeTimers(); const { primary } = fixture();
+  const native = document.createElement('input'); native.placeholder = 'ブックマークを検索'; primary.prepend(native);
+  const send = vi.fn(); const inline = installInlineResearch(send); cleanups.push(inline.dispose);
+  const shadow = root(primary); purpose(shadow, 'Google Workspace'); submit(shadow, '探す');
+  await vi.advanceTimersByTimeAsync(15_100);
+  expect(send).not.toHaveBeenCalled(); expect(root(primary).querySelectorAll('[data-post-id]')).toHaveLength(0);
+  expect(root(primary).querySelector('#status')!.textContent).toContain('検索結果を確認できません');
+});
+it('does not judge delayed native results after retrieval is cancelled', async () => {
+  vi.useFakeTimers(); const { primary, feed } = fixture(); nativeBookmarkSearch(primary, feed);
+  const send = vi.fn(); const inline = installInlineResearch(send); cleanups.push(inline.dispose);
+  const shadow = root(primary); purpose(shadow, 'Google Workspace'); submit(shadow, '探す'); await vi.advanceTimersByTimeAsync(0);
+  submit(shadow, '中断'); retrievedFeed(primary); await vi.advanceTimersByTimeAsync(1000);
+  expect(send).not.toHaveBeenCalled(); expect(root(primary).querySelectorAll('[data-post-id]')).toHaveLength(0);
+});
+it('retrieves and judges only new posts when native search replaces the whole primary column', async () => {
+  vi.useFakeTimers(); const { primary } = fixture();
+  const open = document.createElement('button'); open.setAttribute('aria-label', 'ブックマークを検索'); primary.prepend(open);
+  let replacement!: HTMLElement;
+  open.addEventListener('click', () => {
+    replacement = document.createElement('main'); replacement.dataset.testid = 'primaryColumn';
+    const native = document.createElement('input'); native.placeholder = 'ブックマークを検索'; replacement.append(native);
+    native.addEventListener('keydown', event => { if (event.key === 'Enter') retrievedFeed(replacement); });
+    primary.replaceWith(replacement);
+  });
+  const send = vi.fn(async (message: unknown) => ({ ok: true, results: (message as { payload: ResearchJudge }).payload.posts.map(post => ({ id: post.id, score: 1, confidence: 1 })) }));
+  const inline = installInlineResearch(send); cleanups.push(inline.dispose);
+  const shadow = root(primary); purpose(shadow, 'Google Workspace'); submit(shadow, '探す');
+  await vi.advanceTimersByTimeAsync(0); expect(primary.isConnected).toBe(false); expect(send).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(judgeMessages(send)).toHaveLength(1);
+  expect(judgeMessages(send)[0]!.payload!.posts.map(post => post.id)).toEqual(['3']);
+  expect(root(replacement).querySelector<HTMLInputElement>('[aria-label="探したいこと"]')!.value).toBe('Google Workspace');
+});
+it('waits for native progress and stable results even when reusing the same bookmark keyword', async () => {
+  vi.useFakeTimers(); const { primary, feed } = fixture();
+  const native = document.createElement('input'); native.placeholder = 'ブックマークを検索'; native.value = 'Google Workspace'; primary.prepend(native);
+  const heading = document.createElement('h1'); heading.textContent = 'ブックマークの検索'; feed.prepend(heading);
+  const progress = document.createElement('div'); progress.setAttribute('role', 'progressbar'); primary.append(progress);
+  const entered = vi.fn(); native.addEventListener('keydown', entered);
+  const send = vi.fn(async (message: unknown) => ({ ok: true, results: (message as { payload: ResearchJudge }).payload.posts.map(post => ({ id: post.id, score: 1, confidence: 1 })) }));
+  const inline = installInlineResearch(send); cleanups.push(inline.dispose);
+  const shadow = root(primary); purpose(shadow, 'Google Workspace'); submit(shadow, '探す');
+  await vi.advanceTimersByTimeAsync(600); expect(send).not.toHaveBeenCalled();
+  progress.remove(); await vi.advanceTimersByTimeAsync(300); expect(send).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(600); expect(judgeMessages(send)).toHaveLength(1); expect(entered).not.toHaveBeenCalled();
+});
+it('rejects a combined keyword and purpose exceeding the API query limit before sending', async () => {
+  const { primary } = fixture(); const send = vi.fn();
+  const inline = installInlineResearch(send); cleanups.push(inline.dispose); await flush();
+  const shadow = root(primary); purpose(shadow, 'a'.repeat(1000));
+  const intent = shadow.querySelector<HTMLInputElement>('[aria-label="絞り込む目的（任意）"]')!;
+  intent.value = 'b'.repeat(1000); intent.dispatchEvent(new Event('input', { bubbles: true }));
+  submit(shadow); await flush();
+  expect(send).not.toHaveBeenCalled(); expect(shadow.querySelectorAll('[data-post-id]')).toHaveLength(0);
+  expect(shadow.querySelector('#status')!.textContent).not.toBe('');
 });

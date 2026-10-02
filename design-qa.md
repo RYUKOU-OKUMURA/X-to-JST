@@ -29,3 +29,10 @@
 - 最終ビルドをCometの既存拡張から再読み込みし、Xタブ再読み込み後に同状態を撮影して再比較する。
 
 final result: blocked
+
+## v0.3.1 検索導線の再確認
+
+- 最終版の実Comet capture: `test-results/comet-native-search-v031.png`。既存管理画面でv0.3.1反映を確認し、通常ブックマークからGoogle Workspaceを入力→主ボタンのみでnative検索→Jev5件/5候補を表示。前回の6→1は事前に標準検索を操作した状態だったため、主ボタンの取得確認として扱わない。
+- 最終compact status・任意目的の折りたたみ・中央候補本文を実画面で確認。native一覧はdisplay:noneで畳まず、visibility:hidden・viewport外へ配置。native6件は約80秒後も6件、通常復帰で元styleへ戻ることを確認。全状況での性能保証ではない。
+- 188テスト、型検査/ビルド、Chrome154 mock/実MV3 fixture通過、独立レビュー済み。
+- narrow/light/toolbarの最終実Comet確認、sourceとの厳密な並列比較は未実施。上の全体QAのblockedは維持。今回のブックマーク検索導線と通常復帰の確認は完了。

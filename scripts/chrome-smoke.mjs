@@ -204,19 +204,23 @@ try {
     await inlinePage.evaluate(() => globalThis.fixtureRuntimeListener({ type: 'TOGGLE_RESEARCH' }));
     assert.equal(await inlineHost.evaluate(node => getComputedStyle(node).display), 'block');
   }
+  const originalFeedStyle = await inlinePage.locator('main > section[role=region]').evaluate(node => node.style.cssText);
   await inlineHost.getByRole('searchbox', { name: '探したいこと', exact: true }).fill('議事録');
-  await inlineHost.getByRole('button', { name: '文字で探す', exact: true }).click();
+  await inlineHost.getByRole('button', { name: 'この一覧を文字検索', exact: true }).click();
   await inlineHost.locator('[data-post-id="10"]').waitFor();
   assert.equal(await inlineHost.locator('[data-post-id]').count(), 1);
   assert.equal(await inlineHost.locator('[data-post-id="10"] a').first().getAttribute('href'), 'https://x.com/author/status/10');
   assert.equal(await inlinePage.locator('main > section[role=region]').evaluate(node => node.hidden), true);
+  assert.deepEqual(await inlinePage.locator('main > section[role=region]').evaluate(node => ({ visibility: getComputedStyle(node).visibility, position: getComputedStyle(node).position, top: node.style.top })), { visibility: 'hidden', position: 'fixed', top: '100vh' });
   await inlineHost.getByRole('button', { name: '通常表示に戻る', exact: true }).click();
   assert.equal(await inlinePage.locator('main > section[role=region]').evaluate(node => node.hidden), false);
+  assert.equal(await inlinePage.locator('main > section[role=region]').evaluate(node => node.style.cssText), originalFeedStyle);
   assert.equal(await inlineHost.locator('[data-post-id]').count(), 0);
   await inlineHost.getByRole('searchbox', { name: '探したいこと', exact: true }).fill('存在しないキーワード');
-  await inlineHost.getByRole('button', { name: '文字で探す', exact: true }).click();
+  await inlineHost.getByRole('button', { name: 'この一覧を文字検索', exact: true }).click();
   assert.equal(await inlineHost.locator('[data-post-id]').count(), 0);
   assert.equal(await inlinePage.locator('main > section[role=region]').evaluate(node => node.hidden), true);
+  assert.deepEqual(await inlinePage.locator('main > section[role=region]').evaluate(node => ({ visibility: getComputedStyle(node).visibility, position: getComputedStyle(node).position, top: node.style.top })), { visibility: 'hidden', position: 'fixed', top: '100vh' });
   await inlinePage.close();
   assert.deepEqual(errors, []);
   if (realExtension) {
