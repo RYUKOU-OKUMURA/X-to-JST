@@ -59,10 +59,15 @@ export function attachUi(article: HTMLElement, send: SendMessage = message => ch
       result.replaceChildren();
     }
   });
-  function candidateCard(candidate: TimeCandidate) {
+  function candidateCard(candidate: TimeCandidate, probability?: number) {
     const card = element('div'); card.className = 'candidate';
     const source = element('span', formatSource(candidate)); source.className = 'label';
     const time = element('span', formatJst(candidate)); time.className = 'time';
+    if (probability !== undefined) {
+      const badge = element('span', ` · Jev ${(probability * 100).toFixed(1)}%`); badge.className = 'label';
+      badge.title = 'Jevがこの解釈に割り当てた確率です。時刻計算の正確さを示す値ではありません。';
+      time.append(badge);
+    }
     card.append(source, element('span', '→'), time);
     const copy = element('button', 'コピー'); copy.type = 'button';
     copy.setAttribute('aria-label', `${formatJst(candidate)}をコピー`);
@@ -90,8 +95,8 @@ export function attachUi(article: HTMLElement, send: SendMessage = message => ch
       else {
         const candidates = resolution.status === 'resolved' ? [resolution.candidate] : resolution.candidates;
         result.append(element('p', '向こうの時刻 → 日本時間'));
-        if (resolution.status === 'ambiguous') result.append(element('p', `⚠️ ${candidates.length}候補・未確定`));
-        candidates.forEach(candidate => { result.append(candidateCard(candidate)); });
+        if (resolution.status === 'ambiguous') result.append(element('p', `⚠️ ${candidates.length}候補・未確定${resolution.jev ? `（Jev：選べない確率 ${(resolution.jev.probabilities.unresolved! * 100).toFixed(1)}%）` : ''}`));
+        candidates.forEach(candidate => { result.append(candidateCard(candidate, resolution.jev?.probabilities[candidate.id])); });
         const details = element('details'); details.append(element('summary', '詳細'));
         if (resolution.status === 'ambiguous' && resolution.warning) details.append(element('p', resolution.warning));
         candidates.forEach(candidate => {
@@ -103,6 +108,7 @@ export function attachUi(article: HTMLElement, send: SendMessage = message => ch
           const selected = candidates.find(candidate => candidate.id === jev.choice);
           details.append(element('p', 'TypeSafe / Jev：応答確認済み'),
             element('p', `判定：${selected ? formatJst(selected) : '未確定'}・確信度 ${(jev.confidence * 100).toFixed(1)}%`),
+            element('p', `解釈を選べない確率：${(jev.probabilities.unresolved! * 100).toFixed(1)}%。確信度は確率分布の集中度で、正答率ではありません。`),
             element('p', `自動確定の条件：確信度${CONFIDENCE_THRESHOLD * 100}%以上・上位差${PROBABILITY_GAP * 100}ポイント以上`));
         }
         details.append(element('p', `抽出した表現：${resolution.expression.raw}`));

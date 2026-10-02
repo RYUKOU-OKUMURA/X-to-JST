@@ -43,6 +43,7 @@ describe('X DOM and result UI', () => {
     const node = article(); const send = vi.fn(); const root = attachUi(node, send).shadowRoot!;
     root.querySelector<HTMLButtonElement>('button')!.click(); await flush();
     expect(root.textContent).toContain('2026年10月3日（土）02:00 JST'); expect(send).not.toHaveBeenCalled();
+    expect(root.querySelector('.time')!.textContent).not.toContain('Jev');
     [...root.querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === 'コピー')!.click(); await flush();
     expect(writeText).toHaveBeenCalledWith('日本時間 2026年10月3日（土）02:00 JST');
   });
@@ -77,9 +78,12 @@ describe('X DOM and result UI', () => {
       return { ok: true, result: { choice: state === 'unresolved' ? 'unresolved' : ids[0], confidence: state === 'low' ? .7 : .91,
         probabilities: state === 'unresolved' ? { [ids[0]!]: .1, [ids[1]!]: .1, unresolved: .8 } : { [ids[0]!]: .88, [ids[1]!]: .07, unresolved: .05 } } };
     });
-    const result = await resolveWithJev({ text: 'Tomorrow at 10am PST', postedAtUtc: POST }, send);
-    expect(result.status).toBe(state === 'high' ? 'resolved' : 'ambiguous');
-    expect(result).toMatchObject({ jev: { confidence: state === 'low' ? .7 : .91 } });
+    const node = article('Tomorrow at 10am PST'); const root = attachUi(node, send).shadowRoot!;
+    root.querySelector<HTMLButtonElement>('button')!.click(); await flush();
+    expect(root.querySelectorAll('.candidate')).toHaveLength(state === 'high' ? 1 : 2);
+    expect(root.querySelector('.time')!.textContent).toContain(state === 'unresolved' ? 'Jev 10.0%' : 'Jev 88.0%');
+    expect(root.querySelector('details')!.textContent).toContain(`確信度 ${state === 'low' ? '70.0' : '91.0'}%`);
+    if (state !== 'high') expect(root.textContent).toContain(`選べない確率 ${state === 'unresolved' ? '80.0' : '5.0'}%`);
   });
   it('does not claim a validated Jev response for a malformed success reply', async () => {
     const result = await resolveWithJev({ text: 'Tomorrow at 10am PST', postedAtUtc: POST }, vi.fn(async () => ({ ok: true, result: { choice: 'unresolved' } })));
@@ -90,20 +94,21 @@ describe('X DOM and result UI', () => {
     const node = article('Tomorrow at 10am PST');
     const send = vi.fn(async (message: unknown) => {
       const ids = (message as { payload: { candidates: { id: string }[] } }).payload.candidates.map(c => c.id);
-      return { ok: true, result: { choice: 'unresolved', confidence: .91, probabilities: { [ids[0]!]: .1, [ids[1]!]: .1, unresolved: .8 } } };
+      return { ok: true, result: { choice: 'unresolved', confidence: .91, probabilities: { [ids[0]!]: .123, [ids[1]!]: .077, unresolved: .8 } } };
     });
     const root = attachUi(node, send).shadowRoot!;
     root.querySelector<HTMLButtonElement>('button')!.click(); await flush();
     expect(root.querySelector('h3')).toBeNull();
     expect([...root.querySelectorAll('.candidate')].map(row => row.textContent)).toEqual([
-      '2026/10/2 10:00 UTC-07:00→2026年10月3日（土）02:00 JSTコピー',
-      '2026/10/2 10:00 UTC-08:00→2026年10月3日（土）03:00 JSTコピー',
+      '2026/10/2 10:00 UTC-07:00→2026年10月3日（土）02:00 JST · Jev 12.3%コピー',
+      '2026/10/2 10:00 UTC-08:00→2026年10月3日（土）03:00 JST · Jev 7.7%コピー',
     ]);
     expect(root.querySelector('.result')!.textContent).toContain('向こうの時刻 → 日本時間');
     const details = root.querySelector('details')!;
     expect(details.open).toBe(false);
     expect(details.textContent).toContain('TypeSafe / Jev：応答確認済み');
     expect(details.textContent).toContain('判定：未確定・確信度 91.0%');
+    expect(root.querySelector('.result')!.textContent).toContain('Jev：選べない確率 80.0%');
     expect(details.textContent).toContain('この日の現地時間は');
     expect(root.textContent).not.toContain('APIキー設定');
   });
@@ -111,6 +116,7 @@ describe('X DOM and result UI', () => {
     const node = article('Tomorrow at 10am PST'); const send = vi.fn(async () => ({ ok: false, error: { code: 'KEY_NOT_SET' } }));
     const root = attachUi(node, send).shadowRoot!; root.querySelector<HTMLButtonElement>('button')!.click(); await flush();
     expect(root.textContent).toContain('02:00 JST'); expect(root.textContent).toContain('03:00 JST'); expect(root.textContent).toContain('未設定');
+    expect([...root.querySelectorAll('.time')].some(row => row.textContent?.includes('Jev'))).toBe(false);
     [...root.querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === 'APIキー設定')!.click(); await flush();
     expect(send).toHaveBeenCalledWith({ type: 'OPEN_OPTIONS' });
   });
