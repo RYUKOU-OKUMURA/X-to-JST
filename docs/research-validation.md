@@ -179,3 +179,27 @@ unknown候補としてeffort調査の案内 `2103576349499855160` とOpus 5.5の
 型検査・164テスト・ビルド、Chrome 154のmock runtime＋固定X DOM、実MV3＋固定X DOMのsmokeが通過。mockでは候補0件の標準表示に投稿が出ないこと、折りたたんだ投稿の元メモ保持、幅390pxでパネル外枠が画面内に収まることも確認。独立レビューで指摘された検索結果statusの残りは、収集開始・比較元選択・タブ切替時に消す修正をした。
 
 表示サンプルはignoredの `test-results/research-empty-fixture.png` と `test-results/research-narrow-fixture.png`。有料Jevの実判定や利用中のCometの新UIではない。利用中のCometへ反映するには拡張とXタブの再読み込みが必要で、今回の新UIは実Comet未確認。以前の本人評価・実データ操作許可待ちと、元ゴールの未完了は継続する。
+
+
+## v0.3.0：選択2の中央列目的検索
+
+ユーザーが選択した「ブックマーク画面上部の入力欄＋中央候補一覧」を既存拡張へ実装。ブックマークとX検索結果に挿入し、既存Jev判定・表示本文のcollectorを再利用する。新UIからSAVE/LIST/IMPORT等は送らず、検索中の本文をメモリで保持する。中断・通常復帰・目的変更・画面移動で収集停止・本文破棄。既存保存形式とデータの移行・削除は行わない。
+
+有限の検証範囲は、利用中CometのブックマークとX検索結果の挿入位置、目的検索、通常表示復帰、保存メッセージがないこと。全ブックマークの網羅・API/OAuth・自動スクロールは実装対象外。
+
+### 実Cometで確認したこと
+
+- `/i/bookmarks`は`/i/history`へ遷移し、ブックマークタブと標準「ブックマークを検索」が表示された。標準検索でWorkspaceを入力すると同URLのブックマーク検索画面に6投稿が表示された。全件網羅とはしない。
+- X検索結果 `/search?q=Google%20Workspace&src=typed_query&f=live` にprimaryColumnとsection role=regionがあり、途中版の目的検索欄の挿入も確認した。
+- 拡張の既存ロード元がこのリポジトリのdistで、v0.3.0であることを管理画面で確認。
+- 用途「Workspace StudioとGASを連携して進捗を見える化した実例」を実Jevで判定し、6件から候補1件。元投稿 `2105417411717722385` の表示本文と一致。画像・リンク先の解析や内容の正確さを確認した結果ではない。
+- local GAS検索は候補3件。候補表示時、XのCSSがhidden属性を上書きする現象を実測しdisplay:none!importantを追加。修正版でnative regionのcomputed display none、通常表示に戻る操作でflex、候補0件へのクリアを確認。
+- スクリーンショット `test-results/comet-inline-results.png` はこの途中版。最後のコンパクト化・完了status保護・hostのhidden CSS修正は含まない。
+
+### 自動検証と未確認
+
+型検査・181テスト・ビルド通過。Chrome154の実MV3＋固定X DOMのsmoke通過（隔離されたテストprofile）。新UIのbatch、入力/route変更、中断/遅延応答、API未設定、壊れた応答、判定対象件数の固定、native display値/priority復元、永続保存メッセージなしを確認。実Chrome fixtureは実Cometの成功証拠ではない。
+
+最終ビルドのComet再反映時に管理画面の本文が空表示となり、通常再読み込み・拡張一覧への移動・別管理タブでも操作対象を取得できなかった。原因は未確定。localhostのテスト画面もERR_BLOCKED_BY_CLIENTで開けなかった。ブラウザ保護や権限は変更していない。Comet全体の再起動も実施していない。最終ビルドの実Cometスクリーンショット・狭幅・開閉の実操作は未確認で、design-qa.mdのfinal resultはblocked。
+
+既存104件の実データ削除/復元・再起動確認、本人の有用性評価、元ゴールの完了は今回も未達。UIの実装完了と、最終実機確認を分けて報告する。

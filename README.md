@@ -53,7 +53,7 @@ Tomorrow at 10am PST
 
 ## Status
 
-v0.2.0 — JST conversion and on-demand research are implemented. Research acceptance remains incomplete; confirmed behavior and remaining evaluation are recorded in [docs/research-validation.md](docs/research-validation.md).
+v0.3.0 — JST conversion, on-demand research, and inline purpose search are implemented. Research acceptance remains incomplete; confirmed behavior and remaining evaluation are recorded in [docs/research-validation.md](docs/research-validation.md).
 
 ## Local development
 
@@ -72,7 +72,17 @@ Open the extension's **Extension options** to save or delete your TypeSafe key. 
 
 ## X 調べもの
 
-Xで拡張アイコンを押すと、必要なときだけパネルを開けます。
+### ブックマーク・X検索結果で目的検索
+
+ブックマーク一覧とX検索結果の中央列に「目的で探す」を表示します。X標準の「ブックマークを検索」または通常検索でキーワードを検索し、表示された投稿から「Workspace StudioとGASを連携した実例」のように目的を入力して「探す」を押してください。Jevが目的との関連を判定し、候補を中央列に表示します。「文字で探す」はAPIキー不要です。
+
+対象はクリック時点までに読み込んだ表示本文です。全ブックマーク・X全体の網羅検索ではありません。「さらに読み込む」でXの一覧を手動スクロールし、再判定できます。最大200件・2MiBで、投稿本文は検索中のメモリにだけ保持します。通常表示に戻る・中断・目的変更・画面移動で破棄し、この検索から永続保存はしません。
+
+「探す」は目的・表示本文・投稿日時をTypeSafeへ送信します。画像・動画・リンク先本文は対象外です。著者情報はXの画面表示に使い、Jevへ送りません。候補の関連性は内容の正確さを保証しません。元の投稿を開いて確認できます。拡張アイコンで検索欄を表示・非表示にできます。
+
+### 既存の保存投稿・メモ
+
+その他のX画面で拡張アイコンを押すと、既存の保存投稿パネルを開けます。以前の保存データは維持します。
 
 - **拾う**：収集を開始し、手動スクロールで読み込んだ投稿を選んで保存。時刻表現のない投稿も対象です。
 - **探す**：保存投稿を目的に合わせてJevで判定し、近い候補を先に表示。「文字で探す」はAPIキーなしで使えます。

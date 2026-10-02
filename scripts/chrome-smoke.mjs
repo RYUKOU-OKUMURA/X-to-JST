@@ -191,6 +191,34 @@ try {
   await page.screenshot({ path: 'test-results/chrome-light.png', fullPage: true });
   await page.emulateMedia({ colorScheme: 'dark' });
   await page.screenshot({ path: 'test-results/chrome-dark.png', fullPage: true });
+  await context.route('https://x.com/i/bookmarks*', route => route.fulfill({ contentType: 'text/html', body: '<!doctype html><html lang="ja"><head><meta charset="UTF-8"></head><body><main data-testid="primaryColumn"><section role="region" aria-label="Timeline: Bookmarks"><article data-testid="tweet"><div data-testid="tweetText">AIで議事録を自動化する方法</div><a href="https://x.com/author/status/10"><time datetime="2026-10-02T00:00:00Z"></time></a></article><article data-testid="tweet"><div data-testid="tweetText">今日の昼ごはん</div><a href="https://x.com/author/status/11"><time datetime="2026-10-02T00:00:00Z"></time></a></article></section></main></body></html>' }));
+  const inlinePage = await context.newPage();
+  inlinePage.on('pageerror', error => errors.push(error.message));
+  await inlinePage.goto('https://x.com/i/bookmarks');
+  if (!realExtension) await inlinePage.addScriptTag({ path: resolve(extension, 'content.js') });
+  const inlineHost = inlinePage.locator('[data-x-inline-research-host]');
+  await inlineHost.waitFor();
+  if (!realExtension) {
+    await inlinePage.evaluate(() => globalThis.fixtureRuntimeListener({ type: 'TOGGLE_RESEARCH' }));
+    assert.equal(await inlineHost.evaluate(node => getComputedStyle(node).display), 'none');
+    await inlinePage.evaluate(() => globalThis.fixtureRuntimeListener({ type: 'TOGGLE_RESEARCH' }));
+    assert.equal(await inlineHost.evaluate(node => getComputedStyle(node).display), 'block');
+  }
+  await inlineHost.getByRole('searchbox', { name: '探したいこと', exact: true }).fill('議事録');
+  await inlineHost.getByRole('button', { name: '文字で探す', exact: true }).click();
+  await inlineHost.locator('[data-post-id="10"]').waitFor();
+  assert.equal(await inlineHost.locator('[data-post-id]').count(), 1);
+  assert.equal(await inlineHost.locator('[data-post-id="10"] a').first().getAttribute('href'), 'https://x.com/author/status/10');
+  assert.equal(await inlinePage.locator('main > section[role=region]').evaluate(node => node.hidden), true);
+  await inlineHost.getByRole('button', { name: '通常表示に戻る', exact: true }).click();
+  assert.equal(await inlinePage.locator('main > section[role=region]').evaluate(node => node.hidden), false);
+  assert.equal(await inlineHost.locator('[data-post-id]').count(), 0);
+  await inlineHost.getByRole('searchbox', { name: '探したいこと', exact: true }).fill('存在しないキーワード');
+  await inlineHost.getByRole('button', { name: '文字で探す', exact: true }).click();
+  assert.equal(await inlineHost.locator('[data-post-id]').count(), 0);
+  assert.equal(await inlinePage.locator('main > section[role=region]').evaluate(node => node.hidden), true);
+  await inlinePage.close();
+  assert.deepEqual(errors, []);
   if (realExtension) {
     await context.close();
     context = await chromium.launchPersistentContext(profile, launchOptions);
@@ -214,7 +242,7 @@ try {
     assert.deepEqual(errors, []);
   }
   const report = { browser: context.browser()?.version(), date: new Date().toISOString(), result: 'passed', mode: realExtension ? 'real-extension-with-X-fixture' : 'compiled-UI-with-mocked-runtime',
-    checks: ['unique JST rendering', 'key save/reload/delete', 'unset-key fallback', 'SPA/additional-post injection', 'copy', 'no key in X DOM', 'research panel open', 'explicit collection and selection save', 'research memo save', 'research post and memo persist across page reload', 'backup download version/post/memo and no API key', 'same-backup restore preserves memo', 'single post delete and backup restore preserve text/memo/URL', 'clear saved posts and backup restore preserve text/memo/URL', ...(realExtension ? ['MV3 load', 'real content-script storage denial', 'research post and memo persist across browser restart with same profile'] : [])],
+    checks: ['unique JST rendering', 'key save/reload/delete', 'unset-key fallback', 'SPA/additional-post injection', 'copy', 'no key in X DOM', 'research panel open', 'explicit collection and selection save', 'research memo save', 'research post and memo persist across page reload', 'backup download version/post/memo and no API key', 'same-backup restore preserves memo', 'central inline bookmark local search/filter/return and empty-result native hiding', 'single post delete and backup restore preserve text/memo/URL', 'clear saved posts and backup restore preserve text/memo/URL', ...(!realExtension ? ['inline mock toggle hides and restores host computed display'] : []), ...(realExtension ? ['MV3 load', 'real content-script storage denial', 'research post and memo persist across browser restart with same profile'] : [])],
     limitations: ['X page is a deterministic fixture; live X DOM is not tested.', 'No paid TypeSafe request is made.', ...(!realExtension ? ['Mock persistence is checked across page reload, not browser restart.'] : []), 'Panel opening uses its runtime toggle message; a toolbar action click is not simulated.', ...(!realExtension ? ['Chrome runtime and research storage are mocked in memory; MV3 loading and real storage persistence/isolation are not verified.'] : [])] };
   if (!realExtension) report.checks.push('zero-candidate search folds unmatched posts', '390px research panel stays within viewport', 'folded posts retain original memo');
   await writeFile(`test-results/${realExtension ? 'chrome' : 'browser'}-smoke.json`, JSON.stringify(report, null, 2));
