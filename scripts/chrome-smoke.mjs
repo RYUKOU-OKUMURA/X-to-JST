@@ -33,6 +33,8 @@ try {
       if (message.type === 'RESEARCH_SAVE') { researchPosts.set(message.post.id, message.post); return { ok: true, posts: [...researchPosts.values()] }; }
       if (message.type === 'RESEARCH_EXPORT') return { ok: true, backup: { version: 1, posts: [...researchPosts.values()] } };
       if (message.type === 'RESEARCH_IMPORT') { for (const post of message.backup.posts) if (!researchPosts.has(post.id)) researchPosts.set(post.id, post); return { ok: true, posts: [...researchPosts.values()] }; }
+      if (message.type === 'RESEARCH_DELETE') { researchPosts.delete(message.id); return { ok: true, posts: [...researchPosts.values()] }; }
+      if (message.type === 'RESEARCH_CLEAR') { researchPosts.clear(); return { ok: true, posts: [] }; }
       if (message.type === 'RESEARCH_CANCEL') return { ok: true };
       return { ok: false, error: { code: 'KEY_NOT_SET' } };
     });
@@ -141,6 +143,17 @@ try {
   await research.locator('input[type=file]').setInputFiles({ name: 'smoke-backup.json', mimeType: 'application/json', buffer: Buffer.from(backupText) });
   await research.getByText('未登録の投稿を復元しました。既存の本文とメモは保持しています。', { exact: true }).waitFor();
   assert.equal(await researchCard.getByRole('textbox', { name: '投稿1の気になった理由', exact: true }).inputValue(), 'smoke: remember this workflow');
+  for (const all of [false, true]) {
+    page.once('dialog', dialog => dialog.accept());
+    await (all ? research.getByRole('button', { name: '保存を全件削除', exact: true }) : researchCard.getByRole('button', { name: '削除', exact: true })).click();
+    await research.getByText('保存投稿を削除しました。', { exact: true }).waitFor();
+    assert.equal(await researchCard.count(), 0, 'Deleted fixture post must be absent before restore');
+    await research.locator('input[type=file]').setInputFiles({ name: 'smoke-backup.json', mimeType: 'application/json', buffer: Buffer.from(backupText) });
+    await research.getByText('未登録の投稿を復元しました。既存の本文とメモは保持しています。', { exact: true }).waitFor();
+    assert.equal(await researchCard.getByRole('textbox', { name: '投稿1の気になった理由', exact: true }).inputValue(), 'smoke: remember this workflow');
+    assert.equal(await researchCard.getByText('Tomorrow at 10am PST', { exact: true }).count(), 1);
+    assert.equal(await researchCard.getByRole('link', { name: '元の投稿', exact: true }).getAttribute('href'), 'https://x.com/author/status/1');
+  }
   assert.deepEqual(errors, []);
   await mkdir('test-results', { recursive: true });
   await page.screenshot({ path: 'test-results/chrome-light.png', fullPage: true });
@@ -167,7 +180,7 @@ try {
     assert.deepEqual(errors, []);
   }
   const report = { browser: context.browser()?.version(), date: new Date().toISOString(), result: 'passed', mode: realExtension ? 'real-extension-with-X-fixture' : 'compiled-UI-with-mocked-runtime',
-    checks: ['unique JST rendering', 'key save/reload/delete', 'unset-key fallback', 'SPA/additional-post injection', 'copy', 'no key in X DOM', 'research panel open', 'explicit collection and selection save', 'research memo save', 'research post and memo persist across page reload', 'backup download version/post/memo and no API key', 'same-backup restore preserves memo', ...(realExtension ? ['MV3 load', 'real content-script storage denial', 'research post and memo persist across browser restart with same profile'] : [])],
+    checks: ['unique JST rendering', 'key save/reload/delete', 'unset-key fallback', 'SPA/additional-post injection', 'copy', 'no key in X DOM', 'research panel open', 'explicit collection and selection save', 'research memo save', 'research post and memo persist across page reload', 'backup download version/post/memo and no API key', 'same-backup restore preserves memo', 'single post delete and backup restore preserve text/memo/URL', 'clear saved posts and backup restore preserve text/memo/URL', ...(realExtension ? ['MV3 load', 'real content-script storage denial', 'research post and memo persist across browser restart with same profile'] : [])],
     limitations: ['X page is a deterministic fixture; live X DOM is not tested.', 'No paid TypeSafe request is made.', ...(!realExtension ? ['Mock persistence is checked across page reload, not browser restart.'] : []), 'Panel opening uses its runtime toggle message; a toolbar action click is not simulated.', ...(!realExtension ? ['Chrome runtime and research storage are mocked in memory; MV3 loading and real storage persistence/isolation are not verified.'] : [])] };
   await writeFile(`test-results/${realExtension ? 'chrome' : 'browser'}-smoke.json`, JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report, null, 2));
