@@ -1,12 +1,13 @@
 import { isRecord, type ResolveMessage, type Resolution, type TimeCandidate, type TweetContext } from '../types/messages';
-import { copyText, formatJst, formatSource } from '../core/formatter';
+import { copyText, formatJst, formatSource, interpretationLabel } from '../core/formatter';
 import { chooseCandidate, resolveLocal, CONFIDENCE_THRESHOLD, PROBABILITY_GAP } from '../core/resolver';
 import { validateChoice } from '../background/jev-client';
 import { extractTweetContext } from './x-dom';
 type SendMessage = (message: unknown) => Promise<unknown>;
-const controls = new WeakMap<HTMLElement, () => void>();
-export function refreshUi(article: HTMLElement) { controls.get(article)?.(); }
-const CSS = `:host{display:block;flex:0 0 100%;min-width:0;margin:8px 0;color-scheme:light dark}*{box-sizing:border-box}section{font:13px/1.5 system-ui,sans-serif;color:CanvasText;text-align:left}button{font:inherit;padding:3px 8px;border:1px solid #6c8090;border-radius:12px;background:Canvas;color:CanvasText;cursor:pointer}.trigger{border:0;padding:3px 0}button:focus-visible,summary:focus-visible{outline:3px solid #1d9bf0;outline-offset:2px}button:disabled{opacity:.6;cursor:wait}.result{border-top:1px solid #6c8090;padding-top:6px;margin-top:4px;overflow-wrap:anywhere}p{margin:4px 0}.candidate{display:flex;align-items:center;gap:6px 10px;flex-wrap:wrap;padding:4px 0}.time{font-size:14px;font-weight:600}.label{font-size:12px}details{margin-top:4px}summary{cursor:pointer;width:fit-content}`;
+const controls = new WeakMap<HTMLElement, { refresh: () => void; remove: () => void }>();
+export function refreshUi(article: HTMLElement) { controls.get(article)?.refresh(); }
+export function removeUi(article: HTMLElement) { controls.get(article)?.remove(); }
+const CSS = `:host{display:block;flex:0 0 100%;min-width:0;margin:8px 0;color-scheme:light dark}*{box-sizing:border-box}section{font:13px/1.5 system-ui,sans-serif;color:CanvasText;text-align:left}button{font:inherit;padding:3px 8px;border:1px solid #6c8090;border-radius:12px;background:Canvas;color:CanvasText;cursor:pointer}.trigger{border:0;padding:3px 0}button:focus-visible,summary:focus-visible{outline:3px solid #1d9bf0;outline-offset:2px}button:disabled{opacity:.6;cursor:wait}.result{border-top:1px solid #6c8090;padding-top:6px;margin-top:4px;overflow-wrap:anywhere}p{margin:4px 0}.candidate{display:flex;align-items:center;gap:6px 10px;flex-wrap:wrap;padding:4px 0}.time{font-size:14px;font-weight:600}.label{font-size:12px}.interpretation{flex:0 0 100%;font-size:12px}details{margin-top:4px}summary{cursor:pointer;width:fit-content}`;
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, text?: string): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
   if (text) node.textContent = text;
@@ -48,19 +49,22 @@ export function attachUi(article: HTMLElement, send: SendMessage = message => ch
   section.append(button, result);
   shadow.append(style, section);
   // X articles are flex rows; keep the control and results on their own full-width row.
+  const previousWrap = article.style.flexWrap;
   article.style.flexWrap = 'wrap';
   article.append(host);
   let lastContext = JSON.stringify(extractTweetContext(article));
-  controls.set(article, () => {
+  controls.set(article, { refresh: () => {
     const current = JSON.stringify(extractTweetContext(article));
     if (current !== lastContext) {
       lastContext = current;
       result.className = '';
       result.replaceChildren();
     }
-  });
-  function candidateCard(candidate: TimeCandidate, probability?: number) {
+  }, remove: () => { host.remove(); article.style.flexWrap = previousWrap; controls.delete(article); } });
+  function candidateCard(candidate: TimeCandidate, timezoneToken: string, probability?: number) {
     const card = element('div'); card.className = 'candidate';
+    const interpretation = element('span', interpretationLabel(candidate, timezoneToken)); interpretation.className = 'interpretation';
+    card.append(interpretation);
     const source = element('span', formatSource(candidate)); source.className = 'label';
     const time = element('span', formatJst(candidate)); time.className = 'time';
     if (probability !== undefined) {
@@ -96,8 +100,8 @@ export function attachUi(article: HTMLElement, send: SendMessage = message => ch
         const candidates = resolution.status === 'resolved' ? [resolution.candidate] : resolution.candidates;
         result.append(element('p', '向こうの時刻 → 日本時間'));
         if (resolution.status === 'ambiguous') result.append(element('p', `⚠️ ${candidates.length}候補・未確定${resolution.jev ? `（Jev：選べない確率 ${(resolution.jev.probabilities.unresolved! * 100).toFixed(1)}%）` : ''}`));
-        candidates.forEach(candidate => { result.append(candidateCard(candidate, resolution.jev?.probabilities[candidate.id])); });
-        const details = element('details'); details.append(element('summary', '詳細'));
+        candidates.forEach(candidate => { result.append(candidateCard(candidate, resolution.expression.timezoneToken, resolution.jev?.probabilities[candidate.id])); });
+        const details = element('details'); details.append(element('summary', resolution.status === 'ambiguous' ? `なぜ${candidates.length}候補？・詳細` : '詳細'));
         if (resolution.status === 'ambiguous' && resolution.warning) details.append(element('p', resolution.warning));
         candidates.forEach(candidate => {
           details.append(element('p', `${formatJst(candidate)} — ${candidate.reason}`));
@@ -107,6 +111,7 @@ export function attachUi(article: HTMLElement, send: SendMessage = message => ch
           const jev = resolution.jev;
           const selected = candidates.find(candidate => candidate.id === jev.choice);
           details.append(element('p', 'TypeSafe / Jev：応答確認済み'),
+            element('p', '判定材料：現在の表示本文＋夏時間・UTC差の計算情報'),
             element('p', `判定：${selected ? formatJst(selected) : '未確定'}・確信度 ${(jev.confidence * 100).toFixed(1)}%`),
             element('p', `解釈を選べない確率：${(jev.probabilities.unresolved! * 100).toFixed(1)}%。確信度は確率分布の集中度で、正答率ではありません。`),
             element('p', `自動確定の条件：確信度${CONFIDENCE_THRESHOLD * 100}%以上・上位差${PROBABILITY_GAP * 100}ポイント以上`));

@@ -33,6 +33,18 @@ describe('worker and API contract', () => {
     const state = JSON.parse(init[1].body as string).state;
     expect(JSON.stringify(state)).not.toContain('test-api-key');
     expect(Object.keys(state)).toEqual(['tweet_text', 'posted_at_utc', 'extracted_expression', 'candidates']);
+    expect(state.candidates.regional_pst).toMatchObject({ interpretation: '夏時間として読む', source_zone: 'America/Los_Angeles', utc_offset_minutes: -420, regional_daylight_saving: true, calculation_note: expect.stringContaining('原文はPST') });
+    expect(state.candidates.literal_pst).toMatchObject({ interpretation: 'PST表記どおりに読む', utc_offset_minutes: -480, regional_daylight_saving: null });
+  });
+  it('rebuilds seasonal facts rather than forwarding extra fields', async () => {
+    const { message, choice } = fixture();
+    const fetcher = vi.fn(async () => new Response(JSON.stringify({ answers: { timezone_intent: { type: 'choice', ...choice } } })));
+    const service = createService(storage() as unknown as chrome.storage.LocalStorageArea, fetcher);
+    expect(await service.handle({ ...message, payload: { ...message.payload, regional_daylight_saving: 'forged', originalText: 'old post' } }, sender)).toMatchObject({ ok: true });
+    const body = JSON.parse((fetcher.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
+    expect(body.state).not.toHaveProperty('regional_daylight_saving');
+    expect(body.state).not.toHaveProperty('original_text');
+    expect(body.questions.timezone_intent.instructions).toContain('mismatch alone does not prove author intent');
   });
   it.each([401, 429, 500])('falls back on HTTP %s', async status => {
     const service = createService(storage() as unknown as chrome.storage.LocalStorageArea, vi.fn(async () => new Response('', { status })));

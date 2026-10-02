@@ -38,6 +38,27 @@ describe('X DOM and result UI', () => {
     document.body.replaceChildren(); const third = article(); await flush();
     expect(third.querySelectorAll('[data-x-to-jst-host]')).toHaveLength(1); expect(send).not.toHaveBeenCalled();
   });
+  it('shows controls only for supported clock/zone expressions and removes them on reuse', async () => {
+    const node = article('Great news today'); node.style.flexWrap = 'nowrap'; const send = vi.fn();
+    stops.push(observePosts(document.body, post => attachUi(post, send)));
+    expect(node.querySelector('[data-x-to-jst-host]')).toBeNull();
+    node.querySelector('[data-testid="tweetText"]')!.textContent = 'Tomorrow 10am PT'; await flush();
+    expect(node.querySelectorAll('[data-x-to-jst-host]')).toHaveLength(1);
+    node.querySelector('[data-testid="tweetText"]')!.textContent = 'Tomorrow is exciting'; await flush();
+    expect(node.querySelector('[data-x-to-jst-host]')).toBeNull(); expect(node.style.flexWrap).toBe('nowrap');
+    expect(send).not.toHaveBeenCalled();
+  });
+  it('never retains a previous body across translation or recycled-post update ordering', () => {
+    const node = article('Old post: tomorrow at 10am PST'); const text = node.querySelector('[data-testid="tweetText"]')!;
+    text.setAttribute('lang', 'en'); extractTweetContext(node);
+    text.setAttribute('lang', 'ja');
+    expect(extractTweetContext(node)?.text).toBe('Old post: tomorrow at 10am PST');
+    text.textContent = '新しい投稿：明日午前10時PST';
+    expect(extractTweetContext(node)).not.toHaveProperty('originalText');
+    expect(extractTweetContext(node)?.text).toBe('新しい投稿：明日午前10時PST');
+    node.querySelector('a')!.href = 'https://x.com/author/status/2';
+    expect(extractTweetContext(node)).not.toHaveProperty('originalText');
+  });
   it('renders a unique time and copies the displayed date without calling Jev', async () => {
     const writeText = vi.fn(async () => undefined); Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
     const node = article(); const send = vi.fn(); const root = attachUi(node, send).shadowRoot!;
@@ -100,13 +121,15 @@ describe('X DOM and result UI', () => {
     root.querySelector<HTMLButtonElement>('button')!.click(); await flush();
     expect(root.querySelector('h3')).toBeNull();
     expect([...root.querySelectorAll('.candidate')].map(row => row.textContent)).toEqual([
-      '2026/10/2 10:00 UTC-07:00→2026年10月3日（土）02:00 JST · Jev 12.3%コピー',
-      '2026/10/2 10:00 UTC-08:00→2026年10月3日（土）03:00 JST · Jev 7.7%コピー',
+      '夏時間として読む2026/10/2 10:00 UTC-07:00→2026年10月3日（土）02:00 JST · Jev 12.3%コピー',
+      'PST表記どおりに読む2026/10/2 10:00 UTC-08:00→2026年10月3日（土）03:00 JST · Jev 7.7%コピー',
     ]);
     expect(root.querySelector('.result')!.textContent).toContain('向こうの時刻 → 日本時間');
     const details = root.querySelector('details')!;
+    expect(details.querySelector('summary')!.textContent).toBe('なぜ2候補？・詳細');
     expect(details.open).toBe(false);
     expect(details.textContent).toContain('TypeSafe / Jev：応答確認済み');
+    expect(details.textContent).toContain('現在の表示本文＋夏時間・UTC差の計算情報');
     expect(details.textContent).toContain('判定：未確定・確信度 91.0%');
     expect(root.querySelector('.result')!.textContent).toContain('Jev：選べない確率 80.0%');
     expect(details.textContent).toContain('この日の現地時間は');

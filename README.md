@@ -79,6 +79,13 @@ Both commands use `/usr/bin/chromium` by default; set `CHROMIUM_PATH` for anothe
 
 An optional, explicit `npm run test:jev` sends one synthetic post to the real TypeSafe API using `TYPESAFE_API_KEY` from your environment. It can incur API charges and is never part of CI.
 
+## Display and Jev evidence
+
+- 日本時間ボタンは、既存パーサーで対応する日時・タイムゾーンが見つかった投稿だけに表示します。本文の差し替えに合わせて追加・除去します。
+- 候補には「夏時間として読む」「PST表記どおりに読む」等の解釈を表示し、「なぜ2候補？・詳細」で理由を確認できます。向こうの時刻 → 日本時間、候補確率、コピーは維持します。
+- Jevには現在の表示本文と、コードで算出したUTC差・夏時間の有無・表記との差を渡します。夏時間との食い違いだけで著者の意図を決めず、根拠が足りなければ未確定にします。確信度の向上を保証する変更ではありません。
+- Xの日本語翻訳表示では英語原文がDOMから置換されるため、過去の原文キャッシュや自動の言語切替は追加しません。英語表示時は現在の英語本文を使います。API呼び出しは従来どおり曖昧な投稿のボタンクリック時のみです。
+
 ## Date interpretation rules
 
 - `today`, `tonight`, and `tomorrow` use the posting date in each candidate's time zone. A time must be explicitly stated.
