@@ -1,4 +1,4 @@
-export type TweetContext = { text: string; postedAtUtc?: string; url?: string };
+export type TweetContext = { text: string; postedAtUtc?: string; url?: string; lang?: string };
 export type DateRule =
   | { kind: 'relative'; days: 0 | 1 }
   | { kind: 'weekday'; weekday: number; nextWeek: boolean }
@@ -13,8 +13,8 @@ export type TimeCandidate = {
   reason: string; warning?: string;
 };
 export type Resolution =
-  | { status: 'resolved'; candidate: TimeCandidate; expression: TimeExpression }
-  | { status: 'ambiguous'; candidates: TimeCandidate[]; expression: TimeExpression; warning?: string }
+  | { status: 'resolved'; candidate: TimeCandidate; expression: TimeExpression; jev?: JevChoice }
+  | { status: 'ambiguous'; candidates: TimeCandidate[]; expression: TimeExpression; warning?: string; jev?: JevChoice }
   | { status: 'unsupported'; reason: string };
 export type JevChoice = { choice: string; confidence: number; probabilities: Record<string, number> };
 export type ResolveMessage = {

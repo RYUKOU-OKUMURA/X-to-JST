@@ -1,12 +1,13 @@
 {
   "manifest_version": 3,
   "name": "X to JST",
-  "version": "0.1.0",
+  "version": "0.3.2",
   "description": "Xの海外日時表現を投稿時刻と夏時間を考慮して日本時間に変換します。",
   "minimum_chrome_version": "120",
   "permissions": ["storage"],
   "host_permissions": ["https://api.typesafe.ai/*"],
   "background": { "service_worker": "background.js" },
+  "action": { "default_title": "X 調べものを開く" },
   "options_ui": { "page": "options/index.html", "open_in_tab": true },
   "content_scripts": [{ "matches": ["https://x.com/*"], "js": ["content.js"], "run_at": "document_idle" }],
   "content_security_policy": { "extension_pages": "script-src 'self'; object-src 'self'" }

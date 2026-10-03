@@ -14,5 +14,5 @@ export function extractTweetContext(article: HTMLElement): TweetContext | undefi
   const timestamp = times.length === 1 ? times[0]!.getAttribute('datetime') ?? undefined : undefined;
   const link = times.length === 1 ? times[0]!.closest<HTMLAnchorElement>('a[href]') : undefined;
   const url = link?.href.startsWith('https://x.com/') ? link.href : undefined;
-  return { text: texts[0]!.textContent!.trim(), postedAtUtc: validTimestamp(timestamp) ? timestamp : undefined, url };
+  return { text: texts[0]!.textContent!.trim(), postedAtUtc: validTimestamp(timestamp) ? timestamp : undefined, url, lang: texts[0]!.getAttribute('lang') ?? undefined };
 }

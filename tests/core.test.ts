@@ -3,7 +3,7 @@ import { Settings } from 'luxon';
 import { parseExpression } from '../src/core/parser';
 import { buildCandidates } from '../src/core/candidate-builder';
 import { resolveLocal, chooseCandidate } from '../src/core/resolver';
-import { copyText, formatJst } from '../src/core/formatter';
+import { copyText, formatJst, formatSource, interpretationLabel } from '../src/core/formatter';
 const POST = '2026-10-02T02:14:00Z';
 function times(text: string, post: string | undefined = POST) {
   const result = resolveLocal({ text, postedAtUtc: post });
@@ -11,6 +11,40 @@ function times(text: string, post: string | undefined = POST) {
   return (result.status === 'resolved' ? [result.candidate] : result.candidates).map(c => c.jstDateTime.replace('.000', ''));
 }
 describe('deterministic date conversion', () => {
+  it('converts the complete reported post in English and Japanese', () => {
+    const english = "Global reset landing tomorrow 10am PST for all paid ChatGPT accounts. Apologies for the slow start with GPT-6.1 Sol, it's now back to running at expected speeds after the massive load spike in the first two days.";
+    const japanese = '明日午前10時PSTに、全有料ChatGPTアカウント向けのグローバルリセット着陸が行われます。GPT-6.1 Solの開始が遅れたことについてお詫び申し上げます。最初の2日間の大量の負荷急増の後、現在は期待される速度で動作しています。';
+    expect(times(english)).toEqual(['2026-10-03T02:00:00+09:00', '2026-10-03T03:00:00+09:00']);
+    expect(times(japanese)).toEqual(times(english));
+    expect(parseExpression(japanese, POST)).toMatchObject({ raw: '明日午前10時PST', index: 0, date: { kind: 'relative', days: 1 } });
+  });
+  it.each([
+    ['明日の午前10時30分 PT', '2026-10-03T02:30:00+09:00'],
+    ['今日午後7時PDT', '2026-10-02T11:00:00+09:00'],
+    ['今夜午後7時PDT', '2026-10-02T11:00:00+09:00'],
+    ['2026年10月2日15時 UTC', '2026-10-03T00:00:00+09:00'],
+    ['PDT 明日午前10時', '2026-10-03T02:00:00+09:00'],
+    ['今日22:00 UTC', '2026-10-03T07:00:00+09:00'],
+    ['今年も開発を続けます。明日午前10時PTに公開します。', '2026-10-03T02:00:00+09:00'],
+  ])('converts Japanese clocks without duplicate locale matches: %s', (text, expected) => {
+    expect(times(text)).toEqual([expected]);
+  });
+  it('uses regional posting dates for Japanese relative rules', () => {
+    expect(times('明日午前10時PST', '2026-10-02T07:30:00Z')).toEqual(['2026-10-04T02:00:00+09:00', '2026-10-03T03:00:00+09:00']);
+    expect(times('今夜午後7時PDT', '2027-01-01T02:14:00Z')).toEqual(times('Tonight at 7pm PDT', '2027-01-01T02:14:00Z'));
+    expect(resolveLocal({ text: '明日午前10時PT' }).status).toBe('unsupported');
+  });
+  it.each([
+    'now PT', '10am PT and now 2pm', '10am PT, now tomorrow at 2pm',
+    '明日午前10時から午後2時PT', '明日午前10時PT、午後2時',
+    '明日午前10時30分20秒PT', '明日午前25時PT',
+    '昨日午前10時PT', '明後日午前10時PT', '明後日\n午前10時PT', '来週金曜日午後2時PT',
+    '次の金曜日午後2時PT', '今年10月2日午前10時PT',
+    '毎週月曜日午前10時PST', '翌週月曜日午前10時PST',
+    '毎月2日午前10時PST', '翌月2日午前10時PST',
+  ])('does not silently discard actual clocks or unsupported Japanese dates: %s', text => {
+    expect(times(text)).toEqual([]);
+  });
   it('resolves tomorrow per regional and literal local posting dates', () => {
     expect(times('Tomorrow at 10am PST')).toEqual(['2026-10-03T02:00:00+09:00', '2026-10-03T03:00:00+09:00']);
     expect(times('Tomorrow at 10am PST', '2026-10-02T07:30:00Z')).toEqual(['2026-10-04T02:00:00+09:00', '2026-10-03T03:00:00+09:00']);
@@ -78,7 +112,24 @@ describe('deterministic date conversion', () => {
     if ('reason' in expression) throw new Error(expression.reason);
     const c = buildCandidates(expression, POST)[0]!;
     expect(formatJst(c)).toBe('2026年10月3日（土）02:00 JST');
+    expect(formatSource(c)).toBe('2026/10/2 10:00 UTC-07:00');
     expect(copyText(c)).toBe('日本時間 2026年10月3日（土）02:00 JST');
+  });
+  it('preserves the source offset and date when the Japan comparison crosses a year', () => {
+    const result = resolveLocal({ text: '2026-12-31 23:30 UTC-08:00' });
+    if (result.status !== 'resolved') throw new Error('Expected one candidate');
+    expect(formatSource(result.candidate)).toBe('2026/12/31 23:30 UTC-08:00');
+    expect(formatJst(result.candidate)).toBe('2027年1月1日（金）16:30 JST');
+  });
+  it.each([
+    ['2026-10-02 10am PST', ['夏時間として読む', 'PST表記どおりに読む']],
+    ['2026-01-02 10am PDT', ['現地の標準時として読む', 'PDT表記どおりに読む']],
+    ['2026-10-02 10am UTC', ['UTC表記どおりに読む']],
+  ])('labels actual seasonal interpretation without calling all regional times summer: %s', (text, labels) => {
+    const result = resolveLocal({ text });
+    if (result.status === 'unsupported') throw new Error(result.reason);
+    const candidates = result.status === 'resolved' ? [result.candidate] : result.candidates;
+    expect(candidates.map(candidate => interpretationLabel(candidate, result.expression.timezoneToken))).toEqual(labels);
   });
   it('applies confidence and probability-gap thresholds', () => {
     const resolution = resolveLocal({ text: 'Tomorrow at 10am PST', postedAtUtc: POST });
